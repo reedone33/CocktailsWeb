@@ -1,0 +1,12 @@
+# The workbook itself never belongs in the repo - it is the private master copy
+# and it lives one folder up.
+*.xlsx
+*.xlsm
+
+# macOS and editor noise
+.DS_Store
+*.swp
+*~
+
+# Anything staged for deletion by a Cowork session
+_to_delete/

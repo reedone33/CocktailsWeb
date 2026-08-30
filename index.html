@@ -1,0 +1,2055 @@
+<!DOCTYPE html>
+<!-- ==========================================================================
+     Cocktails Dashboard  (self-contained, generated from the 4 key sheets)
+     The Python generator injects the data at the DATA token near line 481.
+     Chart.js is loaded from a CDN (same approach as the BP/Sleep dashboards).
+     ========================================================================== -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Last Call</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Last Call">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<script src="vendor/chart.umd.js"></script>
+<style>
+  /* ---- Cool-toned dark palette -------------------------------------------- */
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --panel2:#243449; --line:#334155;
+    --text:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; --accent2:#5eead4;
+    --gold:#fbbf24; --pink:#f472b6; --good:#4ade80;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       font-size:14px;line-height:1.45}
+  h1{margin:0;font-size:22px;font-weight:600;letter-spacing:.3px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  header{padding:20px 24px;border-bottom:1px solid var(--line);
+         background:linear-gradient(180deg,#13203a,#0f172a)}
+  .sub{color:var(--muted);font-size:12px;margin-top:4px}
+
+  /* KPI cards */
+  .kpis{display:flex;gap:14px;flex-wrap:wrap;margin-top:16px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+       padding:12px 18px;min-width:120px}
+  .kpi .n{font-size:24px;font-weight:700;color:var(--accent2)}
+  .kpi .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+
+  /* Tabs */
+  nav{display:flex;gap:4px;flex-wrap:wrap;padding:0 24px;border-bottom:1px solid var(--line);
+      background:var(--bg);position:sticky;top:0;z-index:20}
+  nav button{background:none;border:none;color:var(--muted);padding:14px 16px;cursor:pointer;
+             font-size:13px;font-weight:600;border-bottom:2px solid transparent}
+  nav button:hover{color:var(--text)}
+  nav button.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+  main{padding:22px 24px;max-width:1400px}
+  .tab{display:none}
+  .tab.active{display:block}
+  .intro{color:var(--muted);font-size:12.5px;margin:-4px 0 16px}
+
+  /* Controls */
+  .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+  input[type=search],select{background:var(--panel);border:1px solid var(--line);color:var(--text);
+       padding:8px 12px;border-radius:8px;font-size:13px;outline:none}
+  input[type=search]{min-width:240px}
+  input[type=search]:focus,select:focus{border-color:var(--accent)}
+  .count{color:var(--muted);font-size:12px}
+
+  /* Tables */
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{background:var(--panel2);color:var(--muted);font-weight:600;position:sticky;top:0;
+     cursor:pointer;user-select:none;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px}
+  th:hover{color:var(--text)}
+  th.sorted::after{content:" \25B4";color:var(--accent)}
+  th.sorted.desc::after{content:" \25BE"}
+  tbody tr:hover{background:var(--panel)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;padding:2px 8px;border-radius:20px;background:var(--panel2);
+        font-size:11px;color:var(--muted)}
+  /* Quick-filter chips */
+  .chips{display:inline-flex;gap:6px;flex-wrap:wrap}
+  .chip{background:var(--panel);border:1px solid var(--line);color:var(--muted);
+        padding:7px 13px;border-radius:20px;cursor:pointer;font-size:12.5px;font-weight:600}
+  .chip:hover{color:var(--text);border-color:var(--accent)}
+  .chip.active{background:var(--accent);color:#0f172a;border-color:var(--accent)}
+  .rate{font-weight:700}
+  .comment{white-space:normal;max-width:360px;color:var(--muted);font-size:12px}
+
+  /* Chart + grid layout */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card h3{margin:0 0 12px;font-size:14px;color:var(--text)}
+  canvas{max-height:300px}
+
+  /* Recipe cards */
+  .recipe{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+          padding:16px 18px;margin-bottom:12px}
+  .recipe h3{margin:0 0 2px;font-size:15px;display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+  .recipe .cat{color:var(--muted);font-size:12px;font-weight:400}
+  .recipe .badge{font-size:12px;color:var(--gold);font-weight:700;white-space:nowrap}
+  .recipe ul{margin:8px 0;padding-left:18px}
+  .recipe li{margin:2px 0}
+  .recipe .amt{color:var(--accent2)}
+  .recipe .prep{color:var(--muted);font-size:12.5px;margin-top:6px}
+  .note{color:var(--gold);font-size:12px;background:#2a2410;border:1px solid #423813;
+        padding:10px 14px;border-radius:8px;margin-bottom:14px}
+
+
+  /* ---- Bar tab: the inventory grid ---------------------------------------- */
+  /* `hidden` alone is not enough here: the browser's own rule for it is weak,
+     and any element given a display of its own (like the grid below) would
+     ignore it and stay on screen. */
+  [hidden]{display:none !important}
+  .barGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:4px}
+  @media(max-width:520px){.barGrid{grid-template-columns:repeat(2,1fr);gap:8px}}
+  .barTile{position:relative;aspect-ratio:1;border-radius:14px;border:1px solid rgba(255,255,255,.10);
+           display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+           cursor:pointer;color:#e2e8f0;text-align:center;padding:10px;
+           transition:transform .12s ease,border-color .12s ease}
+  .barTile:hover{transform:translateY(-2px);border-color:var(--accent)}
+  .barTile:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .barTile .tname{font-size:15px;font-weight:600;line-height:1.2}
+  .barTile .tcount{position:absolute;top:9px;right:9px;font-size:11.5px;font-weight:600;
+                   padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.13);color:#e2e8f0;
+                   font-variant-numeric:tabular-nums}
+  .barTile svg{opacity:.85}
+
+  /* the drill-down list */
+  .barBack{background:var(--panel);border:1px solid var(--line);color:var(--text);
+           padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600}
+  .barBack:hover{border-color:var(--accent)}
+  .barSort{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .barSort button{background:var(--panel);border:none;color:var(--muted);padding:8px 14px;
+                  cursor:pointer;font-size:12.5px;font-weight:600}
+  .barSort button.on{background:var(--accent);color:#0f172a}
+  .bottle{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+          padding:13px 15px;margin-bottom:8px}
+  .bottle .bname{font-size:14.5px;font-weight:600}
+  .bottle .bbrand{font-size:12px;color:var(--muted);margin-top:1px}
+  .bottle .bfields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+                   gap:4px 18px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+  .bottle .f{display:flex;gap:8px;font-size:12.5px;align-items:center;
+             flex-wrap:nowrap;white-space:nowrap}
+  .bottle .f .k{color:var(--muted);min-width:88px;flex:0 0 auto}
+  .bottle .f .v{overflow:hidden;text-overflow:ellipsis}
+  .bottle .f .v{font-variant-numeric:tabular-nums}
+  .amtbar{display:inline-block;width:42px;height:6px;border-radius:3px;background:var(--panel2);
+          overflow:hidden;vertical-align:middle}
+  .amtbar i{display:block;height:100%;border-radius:3px}
+  .barEmpty{color:var(--muted);padding:30px 0;text-align:center}
+  /* ---- Infographic tab ---------------------------------------------------- */
+  .info{max-width:1100px}
+  .info h2.big{font-size:26px;margin:6px 0 2px}
+  .hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin:18px 0}
+  @media(max-width:820px){.hero{grid-template-columns:repeat(2,1fr)}}
+  .hero .tile{border-radius:16px;padding:18px;color:#0f172a;position:relative;overflow:hidden}
+  .hero .tile .big{font-size:34px;font-weight:800;line-height:1}
+  .hero .tile .lbl{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:8px;opacity:.9}
+  .hero .tile .emoji{position:absolute;right:12px;top:10px;font-size:30px;opacity:.55}
+  .t-sky{background:linear-gradient(135deg,#7dd3fc,#0ea5e9)}
+  .t-teal{background:linear-gradient(135deg,#99f6e4,#14b8a6)}
+  .t-gold{background:linear-gradient(135deg,#fde68a,#f59e0b)}
+  .t-pink{background:linear-gradient(135deg,#f9a8d4,#ec4899)}
+  .info-sec{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin:16px 0}
+  .info-sec h3{margin:0 0 14px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:820px){.info-grid{grid-template-columns:1fr}}
+  .bars .bar-row{display:flex;align-items:center;gap:12px;margin:9px 0}
+  .bars .name{width:96px;font-size:13px;color:var(--muted);text-align:right}
+  .bars .track{flex:1;background:var(--panel2);border-radius:8px;height:24px;overflow:hidden}
+  .bars .fill{height:100%;border-radius:8px;background:linear-gradient(90deg,#38bdf8,#5eead4);
+        display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#0f172a;font-size:11px;font-weight:800}
+  .lead{list-style:none;margin:0;padding:0}
+  .lead li{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .lead li:last-child{border:none}
+  .lead .rank{width:26px;height:26px;border-radius:50%;background:var(--panel2);display:flex;
+        align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+  .lead .rank.g{background:#fbbf24;color:#0f172a}.lead .rank.s{background:#cbd5e1;color:#0f172a}.lead .rank.b{background:#d19a66;color:#0f172a}
+  .lead .nm{flex:1;font-size:13.5px}
+  .lead .val{font-weight:700;color:var(--accent2)}
+  .super{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  @media(max-width:820px){.super{grid-template-columns:1fr 1fr}}
+  .super .s{background:var(--panel2);border-radius:12px;padding:14px}
+  .super .s .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .super .s .v{font-size:15px;font-weight:700;margin-top:5px;line-height:1.25}
+  .super .s .sub{font-size:12px;color:var(--muted);margin-top:3px}
+  .vs{display:flex;align-items:center;justify-content:center;gap:24px;text-align:center}
+  .vs .p{flex:1}
+  .vs .p .av{font-size:32px;font-weight:800}
+  .vs .p .nm{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .vs .mid{font-size:13px;color:var(--muted);line-height:1.4}
+
+  /* Drink detail modal (Drink History tab) */
+  .drinklink{color:var(--accent);cursor:pointer;border-bottom:1px dotted rgba(56,189,248,.5)}
+  .drinklink:hover{color:var(--accent2);border-bottom-color:var(--accent2)}
+  .modal{position:fixed;inset:0;background:rgba(3,8,20,.72);z-index:100;display:flex;
+         align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;
+         backdrop-filter:blur(2px)}
+  .modal[hidden]{display:none}
+  .mcard{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+         max-width:620px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.6);overflow:hidden}
+  .mhead{padding:18px 20px 14px;border-bottom:1px solid var(--line);
+         background:linear-gradient(180deg,#22344f,var(--panel));position:relative}
+  .mhead h3{margin:0 0 3px;font-size:18px;padding-right:34px}
+  .mhead .sub{color:var(--muted);font-size:12.5px}
+  .mclose{position:absolute;top:12px;right:12px;background:var(--panel2);border:1px solid var(--line);
+          color:var(--muted);width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:15px;line-height:1}
+  .mclose:hover{color:var(--text);border-color:var(--accent)}
+  .mbody{padding:16px 20px 20px}
+  .mstats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+  @media(max-width:560px){.mstats{grid-template-columns:repeat(2,1fr)}}
+  .mstat{background:var(--panel2);border-radius:10px;padding:10px}
+  .mstat .v{font-size:19px;font-weight:800;color:var(--accent2);line-height:1.1}
+  .mstat .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:4px}
+  .mwho{display:flex;gap:10px;margin-bottom:16px}
+  .mwho div{flex:1;background:var(--panel2);border-radius:10px;padding:10px 12px}
+  .mwho .n{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .mwho .s{font-size:16px;font-weight:700;margin-top:3px}
+  .msec{margin-bottom:16px}
+  .msec:last-child{margin-bottom:0}
+  .msec h4{margin:0 0 8px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .ming{display:flex;gap:8px;padding:4px 0;border-bottom:1px solid rgba(51,65,85,.5);font-size:13.5px}
+  .ming:last-child{border:none}
+  .ming .a{color:var(--accent2);font-weight:600;min-width:62px}
+  .mprep{font-size:13px;color:var(--muted);line-height:1.5;background:var(--panel2);
+         padding:10px 12px;border-radius:10px}
+  .mnote{border-left:2px solid var(--line);padding:6px 0 6px 11px;margin-bottom:9px}
+  .mnote:last-child{margin-bottom:0}
+  .mnote .d{font-size:11.5px;color:var(--muted)}
+  .mnote .r{font-weight:700;font-size:12.5px}
+  .mnote .c{font-size:13px;margin-top:3px;line-height:1.45}
+  /* Optional cocktail photo */
+  .mimgwrap{margin-bottom:16px}
+  /* contain (not cover) so nothing is cropped off the top or bottom */
+  .mimg{width:100%;height:330px;object-fit:contain;border-radius:12px;display:block;
+        background:var(--panel2);padding:8px}
+  .mimg-cap{font-size:10.5px;color:var(--muted);margin-top:5px;display:flex;
+            justify-content:space-between;gap:8px;align-items:baseline}
+  .mimg-cap a{color:var(--muted);text-decoration:underline}
+  .imgbtn{background:var(--panel2);border:1px solid var(--line);color:var(--muted);
+          padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600}
+  .imgbtn:hover{color:var(--text);border-color:var(--accent)}
+  .mimg-msg{font-size:12.5px;color:var(--muted);padding:9px 12px;background:var(--panel2);
+            border-radius:10px}
+
+  /* Column picker popover */
+  .popwrap{position:relative;display:inline-block}
+  .pop{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:210px;
+       background:var(--panel);border:1px solid var(--line);border-radius:10px;
+       box-shadow:0 10px 30px rgba(0,0,0,.5);padding:10px 12px}
+  .pop-h{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+  .pop label{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer}
+  .pop label:hover{color:var(--accent)}
+  .pop-f{display:flex;gap:6px;margin-top:10px;border-top:1px solid var(--line);padding-top:9px}
+  .pop-f .chip{padding:4px 10px;font-size:11.5px}
+
+  /* Inventory tab: expandable type rows */
+  tr.grp{cursor:pointer}
+  tr.grp td:first-child{font-weight:600}
+  tr.grp:hover{background:var(--panel2)}
+  .chev{display:inline-block;width:12px;color:var(--accent);font-size:10px;
+        transition:transform .15s;margin-right:6px}
+  tr.grp.open .chev{transform:rotate(90deg)}
+  tr.det > td{background:#18243a;font-size:12.5px;border-bottom:1px solid #22314d}
+  tr.det td:first-child{padding-left:34px;color:var(--text)}
+  tr.det .b{color:var(--muted);font-size:11.5px}
+
+  /* Consumption tab: volume bar + You-vs-Candice makes bar per spirit type */
+  .legend{display:flex;gap:16px;font-size:12px;color:var(--muted);font-weight:400;margin-left:auto}
+  .legend .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  .pours .prow{display:grid;grid-template-columns:92px 1fr 64px 172px;gap:12px;align-items:center;margin:11px 0}
+  @media(max-width:820px){.pours .prow{grid-template-columns:76px 1fr 54px}.pours .mk{grid-column:1/-1;margin-left:88px}}
+  .pours .pname{font-size:13px;font-weight:600;text-align:right;color:var(--text)}
+  .pours .ptrack{background:var(--panel2);border-radius:8px;height:26px;overflow:hidden}
+  .pours .pfill{height:100%;background:linear-gradient(90deg,#b45309,#f59e0b,#fbbf24);border-radius:8px;
+        display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#0f172a;font-size:11px;font-weight:800}
+  .pours .pbtl{font-size:12px;color:var(--muted)}
+  .pours .mk{font-size:11px}
+  .pours .mrow{display:flex;align-items:center;gap:6px;margin:2px 0}
+  .pours .mlbl{width:50px;color:var(--muted)}
+  .pours .mtrack{flex:1;background:var(--panel2);border-radius:5px;height:9px;overflow:hidden}
+  .pours .mfill{height:100%;border-radius:5px}
+  .pours .mfill.reed{background:var(--accent)}
+  .pours .mfill.cand{background:var(--pink)}
+  .pours .mv{width:26px;text-align:right;font-weight:700;color:var(--text)}
+  /* Expandable bottle breakdown under each spirit type */
+  .pours .prow{cursor:pointer;border-radius:8px}
+  .pours .prow:hover{background:rgba(56,189,248,.06)}
+  .pours .pname .chev{margin-right:4px}
+  .pitems{margin:2px 0 12px 104px;border-left:2px solid var(--line);padding-left:12px}
+  @media(max-width:820px){.pitems{margin-left:88px}}
+  .pitem{display:grid;grid-template-columns:1fr 74px 60px 58px;gap:8px;align-items:center;
+         padding:4px 0;font-size:12.5px;border-bottom:1px solid rgba(51,65,85,.4)}
+  .pitem:last-child{border:none}
+  .pitem .nm{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pitem .oz{color:var(--gold);font-weight:700;text-align:right}
+  .pitem .bt,.pitem .mk2{color:var(--muted);text-align:right}
+  @media(max-width:640px){.pitem{grid-template-columns:1fr 62px 52px}.pitem .bt{display:none}}
+
+  /* ===== Print: just the ingredients table, on white paper ================ */
+  @media print{
+    @page{margin:14mm 12mm}
+    /* Reset the app chrome so nothing forces the page wider than the paper */
+    body.printing{background:#fff;color:#000;margin:0;padding:0;width:auto;
+        -webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body.printing header,body.printing nav,body.printing .controls,
+    body.printing .intro,body.printing .kpis,body.printing .noprint{display:none !important}
+    body.printing .tab{display:none !important}
+    body.printing .tab.print-me{display:block !important}
+    body.printing main{padding:0;margin:0;max-width:100%;width:auto;box-sizing:border-box;
+        overflow:visible}
+    body.printing .info,body.printing .tab{max-width:100%;width:auto}
+    body.printing *{box-sizing:border-box}
+    body.printing .tablewrap{border:none;overflow:visible;border-radius:0}
+    body.printing table{font-size:9pt;width:100%;table-layout:auto;border-collapse:collapse}
+    body.printing thead{display:table-header-group}   /* repeat headings per page */
+    body.printing th{background:#eee !important;color:#000;border-bottom:1.5px solid #333;
+        position:static;text-transform:none;font-size:8.5pt;padding:5px 6px;
+        letter-spacing:0;white-space:normal}
+    body.printing td{border-bottom:1px solid #ddd;color:#000;white-space:normal;
+        padding:4px 6px;overflow-wrap:anywhere}
+    body.printing tbody tr{break-inside:avoid}
+    body.printing .pill{background:none;color:#444;padding:0}
+    body.printing .rate{color:#000 !important}
+    /* Title printed at the top of the first page */
+    body.printing main::before{content:attr(data-print-title);display:block;
+        font-size:12.5pt;font-weight:700;margin:0 0 8px;padding-bottom:5px;color:#000;
+        border-bottom:2px solid #333;column-span:all}
+    /* Recipe cards on paper */
+    body.printing .recipe{background:none;border:none;border-bottom:1px solid #ccc;
+        border-radius:0;padding:7px 0 9px;margin:0;break-inside:avoid;color:#000;
+        width:auto;max-width:100%}
+    body.printing .recipe h3{font-size:11.5pt;color:#000;display:flex;flex-wrap:wrap;
+        align-items:baseline;gap:6px;margin:0 0 3px;padding-right:2px}
+    body.printing .recipe h3 > span:first-child{flex:1 1 auto;min-width:0;
+        overflow-wrap:anywhere}
+    body.printing .recipe .badge{color:#000;flex:0 0 auto;white-space:nowrap;font-size:10pt}
+    body.printing .recipe .cat{color:#444;font-size:9.5pt}
+    body.printing .recipe .prep{color:#333;font-size:9.5pt;overflow-wrap:anywhere;
+        margin-top:4px;padding-right:2px}
+    body.printing .recipe ul{margin:4px 0;padding-left:16px}
+    body.printing .recipe li{font-size:9.5pt;overflow-wrap:anywhere;margin:1px 0}
+    body.printing .recipe .amt{color:#000;font-weight:700}
+    body.printing .recipe a{color:#000;text-decoration:none}
+    /* Two columns of recipes on paper — fits far more per page */
+    body.printing.cols2 #rec-list{column-count:2;column-gap:10mm}
+    body.printing.cols2 .recipe{break-inside:avoid;-webkit-column-break-inside:avoid}
+  }
+
+  /* ===== Mobile-friendly overrides ======================================== */
+  /* Tablet & down: the 9-tab bar scrolls sideways instead of stacking. */
+  @media (max-width:820px){
+    nav{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+    nav::-webkit-scrollbar{display:none}
+    nav button{white-space:nowrap;flex:0 0 auto}
+  }
+  /* Phones */
+  @media (max-width:640px){
+    body{font-size:13.5px}
+    header{padding:14px 16px}
+    h1{font-size:18px}
+    .sub{font-size:11px}
+    main{padding:16px 14px}
+    .kpis{gap:9px}
+    .kpi{min-width:0;flex:1 1 calc(50% - 6px);padding:10px 12px}
+    .kpi .n{font-size:20px}
+    nav{padding:0 10px}
+    nav button{padding:12px 12px;font-size:12.5px}
+    .controls{gap:8px}
+    input[type=search]{min-width:0;flex:1 1 100%}
+    select{flex:1 1 auto}
+    .chips{flex:1 1 100%}
+    th,td{padding:7px 9px;font-size:12.5px}
+    .comment{max-width:200px}
+    .hero{gap:10px}
+    .hero .tile{padding:14px}
+    .hero .tile .big{font-size:24px}
+    .info h2.big{font-size:21px}
+    .info-sec{padding:14px 15px}
+    .super{grid-template-columns:1fr}
+    .info-sec h3{flex-wrap:wrap}
+    .vs{gap:12px}
+    .recipe h3{flex-direction:column;align-items:flex-start;gap:2px}
+    .legend{margin-left:0;flex-basis:100%;margin-top:4px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>&#127864; Last Call</h1>
+  <div class="sub" id="genstamp"></div>
+  <div class="kpis" id="kpis"></div>
+</header>
+
+<nav id="nav"></nav>
+
+<!-- Drink detail card, opened from the Drink History tab -->
+<div class="modal noprint" id="drink-modal" hidden>
+  <div class="mcard" id="drink-card"></div>
+</div>
+
+<div id="boot-error" hidden
+     style="margin:24px;padding:16px 18px;border:1px solid #7f1d1d;background:#2a1212;border-radius:12px">
+  <b>Couldn&rsquo;t load the bar data.</b>
+  <div style="color:#94a3b8;font-size:12.5px;margin-top:6px">
+    cocktails.json didn&rsquo;t load. If you are offline and have opened the app before,
+    close it fully and reopen. Otherwise it needs republishing from the Mac.
+  </div>
+  <div id="boot-error-detail" style="color:#f87171;font-size:12px;margin-top:8px;font-family:ui-monospace,monospace"></div>
+</div>
+
+<main>
+  <section class="tab" data-tab="bar">
+    <div class="intro" id="bar-intro"></div>
+    <div class="barGrid" id="bar-grid"></div>
+    <div id="bar-list" hidden></div>
+  </section>
+
+  <section class="tab" data-tab="pour"><h2 style="display:none"></h2>
+    <div class="intro">Serving-cost math from your Ingredients sheet: <b>pour price = Cost &divide; Bottle&nbsp;Size &times; 30&nbsp;ml &times; 4.25</b> per ounce (replaces the old Menu sheet).</div>
+    <div class="controls">
+      <input type="search" id="pour-q" placeholder="Search ingredient or brand&hellip;">
+      <select id="pour-type"></select>
+      <span class="count" id="pour-count"></span>
+    </div>
+    <div class="tablewrap"><table id="pour-table"></table></div>
+  </section>
+
+  <section class="tab" data-tab="inv">
+    <div class="intro">Inventory rolled up by spirit type &mdash; bottle counts, total spend, and amount remaining (replaces Costs, both Ingredients Pivots, and Ingredient_Amounts). Click any type to see the bottles in it. Note: <i>Amount Remaining</i> uses mixed units in the source (mostly 0&ndash;1 fractions, some whole numbers), so amounts are shown raw.</div>
+    <div class="controls">
+      <div class="chips" id="inv-scope"></div>
+      <button class="chip" id="inv-expand">Expand all</button>
+      <button class="chip" id="inv-collapse">Collapse all</button>
+      <span class="count" id="inv-count"></span>
+    </div>
+    <div class="grid" style="margin-bottom:18px">
+      <div class="card"><h3>Bottles by type</h3><canvas id="inv-bottles"></canvas></div>
+      <div class="card"><h3>Total spend by type</h3><canvas id="inv-cost"></canvas></div>
+    </div>
+    <div class="tablewrap"><table id="inv-table"></table></div>
+  </section>
+
+  <section class="tab" data-tab="ing">
+    <div class="intro">Your current bottle list with pour economics and the average rating each spirit earned in your history (replaces IngredientsRated). Empty bottles (0 remaining) are excluded; the cards above update live as you filter.</div>
+    <div class="controls">
+      <input type="search" id="ing-q" placeholder="Search ingredient or brand&hellip;">
+      <div class="chips" id="ing-chips"></div>
+      <select id="ing-type" title="More spirit types"></select>
+      <button class="chip" id="ing-selall">Select all</button>
+      <button class="chip" id="ing-selnone">Clear</button>
+      <span class="popwrap">
+        <button class="chip" id="ing-cols">Columns &#9662;</button>
+        <div class="pop" id="ing-colspop" hidden>
+          <div class="pop-h">Show columns</div>
+          <div id="ing-collist"></div>
+          <div class="pop-f"><button class="chip" id="ing-colsall">All</button>
+            <button class="chip" id="ing-colsmin">Minimal</button></div>
+        </div>
+      </span>
+      <button class="chip" id="ing-print">&#128424; Print</button>
+      <span class="count" id="ing-count"></span>
+    </div>
+    <div class="tablewrap"><table id="ing-table"></table></div>
+  </section>
+
+  <section class="tab" data-tab="info">
+    <div class="info" id="info-body"></div>
+  </section>
+
+  <section class="tab" data-tab="cons">
+    <div class="info" id="cons-body"></div>
+  </section>
+
+  <section class="tab" data-tab="hist">
+    <div class="intro">Everything you&rsquo;ve made, dated and rated (replaces History Pivot, History Chart, HistorySpecific).</div>
+    <div class="card" style="margin-bottom:18px">
+      <h3>Drinks over time
+        <span class="chips" id="hc-gran" style="margin-left:auto"></span>
+      </h3>
+      <div class="intro" style="margin:-4px 0 10px">Hover a point for the count; click one to see those drinks.</div>
+      <canvas id="hist-count"></canvas>
+    </div>
+    <div class="grid" style="margin-bottom:18px">
+      <div class="card"><h3>Average rating by year</h3><canvas id="hist-year"></canvas></div>
+      <div class="card"><h3>Rating distribution</h3><canvas id="hist-dist"></canvas></div>
+    </div>
+    <div class="card" style="margin-bottom:18px">
+      <h3>Top-rated drinks (2+ makes)</h3>
+      <div class="tablewrap"><table id="hist-top"></table></div>
+    </div>
+    <h3 style="margin:18px 0 10px">Full tasting log</h3>
+    <div class="controls">
+      <input type="search" id="hist-q" placeholder="Search drink, brand, or comment&hellip;">
+      <span class="count" id="hist-count"></span>
+    </div>
+    <div class="tablewrap"><table id="hist-table"></table></div>
+  </section>
+
+  <section class="tab" data-tab="rums">
+    <div class="intro">Every neat rum tasting, pulled straight from Drink_History (Drink&nbsp;Name = &ldquo;Rum&rdquo;) &mdash; this reproduces your old Rums Rated sheet.</div>
+    <div class="note" id="rum-note"></div>
+    <div class="controls">
+      <input type="search" id="rum-q" placeholder="Search rum or comment&hellip;">
+      <span class="count" id="rum-count"></span>
+    </div>
+    <div class="tablewrap"><table id="rum-table"></table></div>
+  </section>
+
+  <section class="tab" data-tab="fsq">
+    <div class="info" id="fsq-head"></div>
+    <div class="controls">
+      <input type="search" id="fsq-q" placeholder="Search mark or name&hellip;">
+      <div class="chips" id="fsq-scope"></div>
+      <span class="count" id="fsq-count"></span>
+    </div>
+    <div class="tablewrap"><table id="fsq-table"></table></div>
+  </section>
+
+  <section class="tab" data-tab="rec">
+    <div class="intro">Each drink with its ingredients and its rating history in one place (replaces RecipesAndIngredients and HistoryAndRecipiesAndIngredient).</div>
+    <div class="controls">
+      <input type="search" id="rec-q" placeholder="Search drink or ingredient&hellip;">
+      <button class="chip" id="rec-selall">Select all</button>
+      <button class="chip" id="rec-selnone">Clear</button>
+      <button class="chip" id="rec-cols2" title="Print two recipes side by side">2-up</button>
+      <button class="chip" id="rec-print">&#128424; Print</button>
+      <span class="count" id="rec-count"></span>
+    </div>
+    <div id="rec-list"></div>
+  </section>
+
+  <section class="tab" data-tab="unused">
+    <div class="intro">Bottles you own that don&rsquo;t appear in any recipe &mdash; candidates to use up or explore (replaces &ldquo;Ingredients not in Recipes&rdquo;).</div>
+    <div class="controls">
+      <input type="search" id="un-q" placeholder="Search&hellip;">
+      <select id="un-type"></select>
+      <span class="count" id="un-count"></span>
+    </div>
+    <div class="tablewrap"><table id="un-table"></table></div>
+  </section>
+</main>
+
+<script>
+/* ===========================================================================
+   Last Call.
+   The bar data is fetched from cocktails.json rather than written into this
+   page, so refreshing the app means republishing a data file, not a 1 MB
+   document. Everything below runs inside one async function because none of
+   it can do anything until that fetch has finished.
+   =========================================================================== */
+(async function boot(){
+
+let DATA;
+try {
+  // no-cache so a fresh publish is picked up rather than the browser's copy;
+  // the service worker still serves the cached file when there is no signal.
+  const res = await fetch("cocktails.json", { cache: "no-cache" });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  DATA = await res.json();
+} catch (err) {
+  document.getElementById("boot-error").hidden = false;
+  document.getElementById("boot-error-detail").textContent = String(err);
+  return;                       // stop here - there is nothing to render
+}
+
+/* ---------- tiny helpers -------------------------------------------------- */
+const $ = s => document.querySelector(s);
+const esc = s => (s==null?"":String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const fmt = (v,d=2)=> v==null||v===""? "" : (typeof v==="number"? v.toFixed(d).replace(/\.00$/,"") : v);
+const money = v => v==null? "" : "$"+Number(v).toFixed(2);
+
+/* ---------- Bar tab: the inventory grid ----------------------------------- */
+/* Carried over from the iOS app's Inventory screen: every spirit type you own
+   as a tile, tap through to a searchable list of the bottles in it.          */
+(function(){
+  try {
+
+  // What counts as "in the bar": something left in the bottle, and some
+  // alcohol in it. The proof test is what keeps ice, egg white, lemon wedges
+  // and the other thirty-odd garnish rows out of here.
+  const stock = DATA.ingredients.filter(r => (r.amt || 0) > 0 && (r.proof || 0) > 0);
+
+  // Group the bottles by their type, biggest category first.
+  const byType = {};
+  stock.forEach(r => { (byType[r.type || "Other"] ||= []).push(r); });
+  const types = Object.keys(byType).sort((a,b) => byType[b].length - byType[a].length);
+
+  // Eight background tints, cycled through - straight from the iOS app.
+  const TINTS = ["#291f38","#1a2933","#33211a","#1a2e24","#2e241a","#1a2133","#33192260","#242e1a"];
+
+  // A small icon per category. The iOS app used SF Symbols, which don't exist
+  // on the web, so these are hand-drawn equivalents.
+  const ICONS = {
+    whiskey: '<path d="M12 3c3 4 5 6.5 5 9.5a5 5 0 0 1-10 0C7 9.5 9 7 12 3z"/>',
+    gin:     '<path d="M4 20c0-8 6-14 16-16 0 10-6 16-16 16z"/><path d="M4 20c4-4 7-6 11-8"/>',
+    rum:     '<path d="M12 4a8 8 0 1 0 8 8 5 5 0 1 1-5-5"/>',
+    vodka:   '<path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/>',
+    tequila: '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+    wine:    '<path d="M7 3h10l-1 6a4 4 0 0 1-8 0z"/><path d="M12 15v6"/><path d="M8 21h8"/>',
+    brandy:  '<path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>',
+    amaro:   '<path d="M12 21V9"/><path d="M12 12c-4 0-6-2-6-6 4 0 6 2 6 6z"/><path d="M12 14c4 0 6-2 6-6-4 0-6 2-6 6z"/>',
+    liqueur: '<path d="M12 3l2 6.5 6.5 2-6.5 2L12 20l-2-6.5L3.5 11.5 10 9.5z"/>',
+    absinthe:'<path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/>',
+    beer:    '<path d="M6 8h9v11H6z"/><path d="M15 10h3v6h-3"/><path d="M6 8a3 3 0 0 1 3-3 3 3 0 0 1 6 0"/>',
+    other:   '<path d="M5 8h14v12H5z"/><path d="M9 8V4h6v4"/>'
+  };
+  function iconFor(type){
+    const t = (type || "").toLowerCase();
+    if (/whisk|bourbon|scotch|rye/.test(t)) return ICONS.whiskey;
+    if (/gin/.test(t))                       return ICONS.gin;
+    if (/rum|rhum|cacha/.test(t))            return ICONS.rum;
+    if (/vodka/.test(t))                     return ICONS.vodka;
+    if (/tequila|mezcal|agave/.test(t))      return ICONS.tequila;
+    if (/wine|vermouth|port|sherry|aperitivo|aperitif|champagne/.test(t)) return ICONS.wine;
+    if (/brandy|cognac|armagnac|calvados|pisco/.test(t)) return ICONS.brandy;
+    if (/amaro|bitter/.test(t))              return ICONS.amaro;
+    if (/liqueur|cordial|creme|crème/.test(t)) return ICONS.liqueur;
+    if (/absinthe|pastis|anis/.test(t))      return ICONS.absinthe;
+    if (/beer|cider|sake/.test(t))           return ICONS.beer;
+    return ICONS.other;
+  }
+
+  /* ---- the tile grid ---------------------------------------------------- */
+  function renderGrid(){
+    $("#bar-list").hidden = true;
+    $("#bar-grid").hidden = false;
+    $("#bar-intro").innerHTML =
+      "<b>" + stock.length + "</b> bottles open across <b>" + types.length +
+      "</b> categories. Tap a category to see what&rsquo;s in it.";
+
+    const tile = (name, count, tint, iconPath) =>
+      '<div class="barTile" role="button" tabindex="0" data-type="' + esc(name) + '" style="background:' + tint + '">' +
+        '<span class="tcount">' + count + '</span>' +
+        '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" ' +
+             'stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          iconPath + '</svg>' +
+        '<span class="tname">' + esc(name) + '</span>' +
+      '</div>';
+
+    $("#bar-grid").innerHTML =
+      tile("All Spirits", stock.length, "#3d2e14", ICONS.wine) +
+      types.map((t,i) => tile(t, byType[t].length, TINTS[i % TINTS.length], iconFor(t))).join("");
+  }
+
+  /* ---- the drill-down list ---------------------------------------------- */
+  let listRows = [], listTitle = "", sortKey = "name", sortAsc = true, query = "";
+
+  // How much is left. The column is mixed: most bottles are a 0-1 fraction,
+  // but 34 of them hold a plain count (Underberg 10, Beefeater 80). A bar only
+  // means something for a fraction, so anything above 1 shows the number alone.
+  function amountCell(v){
+    if (v == null) return "";
+    if (v > 1) return '<span class="v">' + fmt(v) + '</span>';
+    const pct = Math.round(v * 100);
+    const col = v >= 0.5 ? "#4ade80" : v >= 0.2 ? "#fbbf24" : "#f87171";
+    return '<span class="amtbar"><i style="width:' + pct + '%;background:' + col + '"></i></span>' +
+           ' <span class="v">' + pct + '%</span>';
+  }
+
+  function field(k, v){
+    return v === "" || v == null ? "" :
+      '<div class="f"><span class="k">' + k + '</span><span class="v">' + v + '</span></div>';
+  }
+
+  function renderList(){
+    // Say which category you are looking at, rather than leaving the
+    // "tap a category" prompt up after you already have.
+    $("#bar-intro").innerHTML =
+      "<b>" + esc(listTitle) + "</b> &mdash; " + listRows.length + " bottle" +
+      (listRows.length === 1 ? "" : "s") + " open.";
+    const q = query.trim().toLowerCase();
+    let rows = !q ? listRows : listRows.filter(r =>
+      (r.ingredient || "").toLowerCase().includes(q) || (r.brand || "").toLowerCase().includes(q));
+
+    rows = rows.slice().sort((a,b) => {
+      let x, y;
+      if (sortKey === "rating") { x = a.avgRating ?? -1;          y = b.avgRating ?? -1; }
+      else if (sortKey === "type") { x = a.type || "";            y = b.type || ""; }
+      else                         { x = a.ingredient || "";      y = b.ingredient || ""; }
+      const c = typeof x === "number" ? x - y : String(x).localeCompare(String(y));
+      return sortAsc ? c : -c;
+    });
+
+    const btn = (k, label) =>
+      '<button data-k="' + k + '" class="' + (sortKey === k ? "on" : "") + '">' + label +
+      (sortKey === k ? (sortAsc ? " ▴" : " ▾") : "") + '</button>';
+
+    $("#bar-list").innerHTML =
+      '<div class="controls">' +
+        '<button class="barBack" id="bar-back">&#8592; All categories</button>' +
+        '<input type="search" id="bar-q" placeholder="Search ' + esc(listTitle.toLowerCase()) + '&hellip;" value="' + esc(query) + '">' +
+        '<span class="barSort">' + btn("name","Name") + btn("type","Type") + btn("rating","Rating") + '</span>' +
+        '<span class="count">' + rows.length + ' of ' + listRows.length + '</span>' +
+      '</div>' +
+      (rows.length ? rows.map(r =>
+        '<div class="bottle">' +
+          '<div class="bname">' + esc(r.ingredient) + '</div>' +
+          (r.brand ? '<div class="bbrand">' + esc(r.brand) + '</div>' : '') +
+          '<div class="bfields">' +
+            field("Type",       esc(r.type)) +
+            field("Proof",      r.proof != null ? fmt(r.proof, 0) : "") +
+            field("Bottle",     r.size  != null ? fmt(r.size, 0) + " ml" : "") +
+            field("Remaining",  amountCell(r.amt)) +
+            field("Cost",       r.cost  != null ? money(r.cost) : "") +
+            field("Pour (2 oz)",r.p2    != null ? money(r.p2)   : "") +
+            field("Purchased",  esc(r.purchased)) +
+            field("Origin",     esc(r.origin)) +
+            field("Rating",     r.avgRating != null
+                    ? '<b style="color:' + rateColor(r.avgRating) + '">' + fmt(r.avgRating) + '</b>' +
+                      ' <span style="color:var(--muted)">(' + r.nRatings + ')</span>'
+                    : "") +
+          '</div>' +
+        '</div>').join("")
+        : '<div class="barEmpty">Nothing matches &ldquo;' + esc(query) + '&rdquo;.</div>');
+
+    const q2 = $("#bar-q");
+    if (q2) {
+      q2.oninput = e => { query = e.target.value; renderList();
+                          const n = $("#bar-q"); n.focus();
+                          n.setSelectionRange(n.value.length, n.value.length); };
+    }
+    $("#bar-back").onclick = renderGrid;
+    $("#bar-list").querySelectorAll(".barSort button").forEach(b => {
+      b.onclick = () => {
+        const k = b.dataset.k;
+        // Tapping the active option flips direction, same as the iOS app.
+        if (sortKey === k) sortAsc = !sortAsc;
+        else { sortKey = k; sortAsc = (k !== "rating"); }   // ratings start high-to-low
+        renderList();
+      };
+    });
+  }
+
+  function openType(type){
+    listRows  = type === "All Spirits" ? stock : (byType[type] || []);
+    listTitle = type;
+    query = ""; sortKey = "name"; sortAsc = true;
+    $("#bar-grid").hidden = true;
+    $("#bar-list").hidden = false;
+    renderList();
+    window.scrollTo(0, 0);
+  }
+
+  // One listener on the grid handles every tile, by mouse or keyboard.
+  $("#bar-grid").addEventListener("click", e => {
+    const t = e.target.closest(".barTile");
+    if (t) openType(t.dataset.type);
+  });
+  $("#bar-grid").addEventListener("keydown", e => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const t = e.target.closest(".barTile");
+    if (t) { e.preventDefault(); openType(t.dataset.type); }
+  });
+
+  renderGrid();
+  } catch (err) {
+    // The Bar tab failing must not take the rest of the app down with it.
+    $("#bar-intro").innerHTML =
+      '<span style="color:#f87171">The bar grid could not be built: ' + esc(String(err)) + '</span>';
+    console.error(err);
+  }
+})();
+
+
+/* ---------- header + tabs ------------------------------------------------- */
+$("#genstamp").textContent = "Generated " + DATA.generated + " from your 4 key worksheets — no pivot tables or Power Query needed.";
+const S = DATA.stats;
+// KPI cards are re-rendered on demand so they can react to the active filter.
+function renderKpis(cards){
+  $("#kpis").innerHTML = cards.map(([n,l])=>`<div class="kpi"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+}
+const globalCards = [[S.ingredients,"Bottles"],[S.drinks,"Recipes"],
+                     [S.tastings,"Tastings logged"],[S.rums,"Rum tastings"]];
+renderKpis(globalCards);
+const TAB_ENTER = {};   // optional per-tab hook to refresh the KPI cards on entry
+
+const TABS = [["bar","Bar"],["info","Infographic"],["ing","Ingredients"],["rec","Recipes"],["hist","Drink History"],
+              ["cons","Consumption"],["pour","Pour Costs"],["inv","Inventory & Costs"],["rums","Rums"],
+              ["fsq","Foursquare"],["unused","Unused"]];
+$("#nav").innerHTML = TABS.map((t,i)=>`<button data-t="${t[0]}" class="${i===0?'active':''}">${t[1]}</button>`).join("");
+$("#nav").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");
+  document.querySelector(`.tab[data-tab="${b.dataset.t}"]`).classList.add("active");
+  (TAB_ENTER[b.dataset.t] || (()=>renderKpis(globalCards)))();   // refresh KPI cards for this tab
+  b.scrollIntoView({inline:"center",block:"nearest"});           // keep active tab visible on mobile
+  window.scrollTo(0,0);
+});
+document.querySelector('.tab[data-tab="bar"]').classList.add("active");
+
+/* ---------- reusable sortable/filterable table ---------------------------- */
+/* cols: [{key,label,cls,fmt}]  rows: array of objects */
+function makeTable(tableSel, cols, rows, state){
+  const table = $(tableSel);
+  state.sortKey = state.sortKey || null; state.desc = state.desc || false;
+  function render(list){
+    const head = "<thead><tr>"+cols.map(c=>{
+      const sorted = c.key===state.sortKey ? "sorted"+(state.desc?" desc":"") : "";
+      // the column's own class goes on the header too, so things like the
+      // non-printing tick-box column hide as a whole and stay aligned
+      return `<th class="${sorted} ${c.cls||''}" data-k="${c.key}">${c.label}</th>`;
+    }).join("")+"</tr></thead>";
+    const body = "<tbody>"+list.map(r=>"<tr>"+cols.map(c=>{
+      let v = r[c.key];
+      v = c.fmt ? c.fmt(v,r) : esc(v);
+      return `<td class="${c.cls||''}">${v==null?'':v}</td>`;
+    }).join("")+"</tr>").join("")+"</tbody>";
+    table.innerHTML = head+body;
+    table.querySelectorAll("th").forEach(th=>th.onclick=()=>{
+      const k=th.dataset.k;
+      if(state.sortKey===k) state.desc=!state.desc; else {state.sortKey=k;state.desc=false;}
+      apply();
+    });
+  }
+  function apply(){
+    let list = rows.filter(state.filter||(()=>true));
+    if(state.sortKey){
+      const k=state.sortKey;
+      list.sort((a,b)=>{
+        let x=a[k],y=b[k];
+        const xn=typeof x==="number", yn=typeof y==="number";
+        if(xn&&yn) return state.desc? y-x : x-y;
+        x=(x==null?"":String(x)).toLowerCase(); y=(y==null?"":String(y)).toLowerCase();
+        return state.desc? (y<x?-1:y>x?1:0) : (x<y?-1:x>y?1:0);
+      });
+    }
+    render(list);
+    if(state.countSel) $(state.countSel).textContent = list.length+" rows";
+    if(state.afterApply) state.afterApply(list);   // e.g. refresh KPI cards from the filtered set
+  }
+  state.apply = apply;
+  apply();
+}
+function typeOptions(sel, values, label){
+  const uniq=[...new Set(values.filter(Boolean))].sort();
+  $(sel).innerHTML = `<option value="">${label}</option>`+uniq.map(t=>`<option>${esc(t)}</option>`).join("");
+}
+
+/* ========================= POUR COSTS ==================================== */
+(function(){
+  const rows = DATA.ingredients.filter(r=>r.p1!=null);
+  const st={countSel:"#pour-count",sortKey:"type"};
+  const cols=[
+    {key:"ingredient",label:"Ingredient",fmt:v=>dlink(v)},
+    {key:"brand",label:"Brand"},
+    {key:"type",label:"Type",fmt:v=>`<span class="pill">${esc(v)}</span>`},
+    {key:"proof",label:"Proof",cls:"num"},
+    {key:"cost",label:"Bottle $",cls:"num",fmt:money},
+    {key:"p1",label:"1 oz",cls:"num",fmt:money},
+    {key:"p15",label:"1.5 oz",cls:"num",fmt:money},
+    {key:"p2",label:"2 oz",cls:"num",fmt:money},
+    {key:"p3",label:"3 oz",cls:"num",fmt:money},
+  ];
+  typeOptions("#pour-type", rows.map(r=>r.type), "All types");
+  st.filter=r=>{
+    const q=$("#pour-q").value.toLowerCase(), t=$("#pour-type").value;
+    const hit=!q || (r.ingredient+" "+r.brand).toLowerCase().includes(q);
+    return hit && (!t || r.type===t);
+  };
+  makeTable("#pour-table",cols,rows,st);
+  $("#pour-q").oninput=st.apply; $("#pour-type").onchange=st.apply;
+})();
+
+/* ========================= INVENTORY ==================================== */
+(function(){
+  // Computed live from the bottle list so the All / In-stock toggle can drive
+  // the counts, the dollar totals and both charts together.
+  let scope = "stock";                 // "stock" = still have some, "all" = ever owned
+  let sortKey = "bottles", desc = true;
+  const open = new Set();              // which type rows are expanded
+
+  const SCOPES = [["In stock", "stock"], ["All", "all"]];
+  $("#inv-scope").innerHTML = SCOPES.map(([lbl, v]) =>
+    `<button class="chip${v === scope ? " active" : ""}" data-s="${v}">${lbl}</button>`).join("");
+
+  const inScope = r => scope === "all" ? true : r.amt !== 0;
+
+  function groups(){
+    const by = {};
+    DATA.ingredients.filter(inScope).forEach(r => {
+      (by[r.type || "(none)"] = by[r.type || "(none)"] || []).push(r);
+    });
+    const out = Object.entries(by).map(([type, items]) => {
+      const amts = items.map(i => i.amt).filter(v => v != null);
+      return {
+        type, items,
+        bottles: items.length,
+        totalCost: items.reduce((s, i) => s + (i.cost || 0), 0),
+        avgAmt: amts.length ? amts.reduce((s, v) => s + v, 0) / amts.length : null,
+        totalAmt: amts.reduce((s, v) => s + v, 0),
+      };
+    });
+    out.sort((a, b) => {
+      let x = a[sortKey], y = b[sortKey];
+      if (typeof x === "number" || typeof y === "number")
+        return desc ? (y || 0) - (x || 0) : (x || 0) - (y || 0);
+      x = String(x).toLowerCase(); y = String(y).toLowerCase();
+      return desc ? (y < x ? -1 : y > x ? 1 : 0) : (x < y ? -1 : x > y ? 1 : 0);
+    });
+    return out;
+  }
+
+  const COLS = [["type","Type"],["bottles","Bottles"],["totalCost","Total spend"],
+                ["avgAmt","Avg amt left"],["totalAmt","Total amt left"]];
+
+  function render(){
+    const g = groups();
+    const totBottles = g.reduce((s,x)=>s+x.bottles,0);
+    const totCost    = g.reduce((s,x)=>s+x.totalCost,0);
+    $("#inv-count").textContent =
+      `${g.length} types · ${totBottles} bottles · ${money(totCost)}`;
+
+    // Keep the header cards in step with the In-stock / All choice
+    const scoped = DATA.ingredients.filter(inScope);
+    const cpo = scoped.filter(r=>r.cost30!=null);
+    renderKpis([
+      [totBottles, scope==="all" ? "Bottles (all)" : "Bottles in stock"],
+      [g.length, "Spirit types"],
+      ["$"+Math.round(totCost).toLocaleString(), "Total spend"],
+      [cpo.length ? "$"+(cpo.reduce((s,r)=>s+r.cost30,0)/cpo.length).toFixed(2) : "—", "Avg cost/oz"],
+    ]);
+
+    const head = "<thead><tr>" + COLS.map(([k,l])=>{
+      const s = k===sortKey ? "sorted"+(desc?" desc":"") : "";
+      return `<th class="${s}" data-k="${k}">${l}</th>`;
+    }).join("") + "</tr></thead>";
+
+    const body = "<tbody>" + g.map(x=>{
+      const isOpen = open.has(x.type);
+      const grp = `<tr class="grp${isOpen?" open":""}" data-t="${esc(x.type)}">
+        <td><span class="chev">&#9656;</span>${esc(x.type)}</td>
+        <td class="num">${x.bottles}</td>
+        <td class="num">${money(x.totalCost)}</td>
+        <td class="num">${fmt(x.avgAmt,2)}</td>
+        <td class="num">${fmt(x.totalAmt,1)}</td></tr>`;
+      if(!isOpen) return grp;
+      // Bottles inside this type, priciest first
+      const items = [...x.items].sort((a,b)=>(b.cost||0)-(a.cost||0)).map(i=>`
+        <tr class="det"><td>${esc(i.ingredient)}${i.brand?` <span class="b">· ${esc(i.brand)}</span>`:""}</td>
+        <td class="num b">${i.proof!=null?i.proof+"&deg;":""}</td>
+        <td class="num">${i.cost!=null?money(i.cost):""}</td>
+        <td class="num">${fmt(i.amt,2)}</td>
+        <td class="num b">${i.cost30!=null?money(i.cost30)+"/oz":""}</td></tr>`).join("");
+      return grp + items;
+    }).join("") + "</tbody>";
+
+    const t = $("#inv-table");
+    t.innerHTML = head + body;
+    t.querySelectorAll("th").forEach(th => th.onclick = () => {
+      const k = th.dataset.k;
+      if (sortKey === k) desc = !desc; else { sortKey = k; desc = true; }
+      render();
+    });
+    t.querySelectorAll("tr.grp").forEach(tr => tr.onclick = () => {
+      const type = tr.dataset.t;
+      open.has(type) ? open.delete(type) : open.add(type);
+      render();
+    });
+    drawCharts(g);
+  }
+
+  let cBottles, cCost;
+  function drawCharts(g){
+    const top  = [...g].sort((a,b)=>b.bottles-a.bottles).slice(0,12);
+    const topc = [...g].sort((a,b)=>b.totalCost-a.totalCost).slice(0,12);
+    if(cBottles) cBottles.destroy();
+    if(cCost) cCost.destroy();
+    cBottles = new Chart($("#inv-bottles"),{type:"bar",data:{labels:top.map(r=>r.type),
+      datasets:[{data:top.map(r=>r.bottles),backgroundColor:"#38bdf8"}]},options:barOpts()});
+    cCost = new Chart($("#inv-cost"),{type:"bar",data:{labels:topc.map(r=>r.type),
+      datasets:[{data:topc.map(r=>r.totalCost),backgroundColor:"#5eead4"}]},options:barOpts(true)});
+  }
+
+  $("#inv-scope").addEventListener("click", e => {
+    const b = e.target.closest(".chip"); if(!b) return;
+    scope = b.dataset.s;
+    $("#inv-scope").querySelectorAll(".chip").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    render();
+  });
+  $("#inv-expand").onclick   = () => { groups().forEach(x=>open.add(x.type)); render(); };
+  $("#inv-collapse").onclick = () => { open.clear(); render(); };
+  TAB_ENTER.inv = () => render();   // refresh the cards when the tab is opened
+
+  render();
+})();
+
+/* ========================= INGREDIENTS ================================== */
+(function(){
+  // Only current inventory: drop bottles with 0 remaining (empties/finished).
+  const rows=DATA.ingredients.filter(r=>r.amt!==0);
+  const st={countSel:"#ing-count",sortKey:"type"};
+  // Row-selection state for printing (keyed by ingredient name)
+  const picked = new Set();
+  const cols=[
+    {key:"_sel",label:"&#10003;",cls:"noprint",
+     fmt:(v,r)=>`<input type="checkbox" class="rowsel" data-n="${esc(r.ingredient)}"${picked.has(r.ingredient)?" checked":""}>`},
+    {key:"ingredient",label:"Ingredient",fmt:v=>dlink(v)},
+    {key:"brand",label:"Brand"},
+    {key:"type",label:"Type",fmt:v=>`<span class="pill">${esc(v)}</span>`},
+    // Rating history, pulled from Drink_History. Blank when never rated.
+    {key:"nRatings",label:"# Ratings",cls:"num",fmt:v=>v==null?"":v},
+    {key:"avgRating",label:"Avg",cls:"num",fmt:v=>v==null?"":`<span class="rate" style="color:${rateColor(v)}">${fmt(v)}</span>`},
+    {key:"highRating",label:"High",cls:"num",fmt:v=>v==null?"":fmt(v)},
+    {key:"lastRated",label:"Last rated",fmt:v=>v==null?"":esc(v)},
+    {key:"proof",label:"Proof",cls:"num"},
+    {key:"amt",label:"Amt left",cls:"num",fmt:v=>v==null?"":fmt(v,2)},
+    {key:"cost",label:"Cost",cls:"num",fmt:money},
+    {key:"cost30",label:"Cost/oz",cls:"num",fmt:money},
+    {key:"origin",label:"Origin"},
+  ];
+  typeOptions("#ing-type", rows.map(r=>r.type),"More types…");
+
+  // Quick-filter chips for the spirits Reed reaches for most.
+  // "Liqueurs" intentionally matches both "Liqueur" and "Orange Liqueur".
+  const QUICK=[["All",null],["Rums","Rum"],["Whiskeys","Whiskey"],
+               ["Gins","Gin"],["Tequilas","Tequila"],["Liqueurs","Liqueur"]];
+  let ingQuick=null;                       // currently selected chip value (null = All)
+  const matchQuick=(cat,type)=> cat==="Liqueur" ? /liqueur/i.test(type||"") : type===cat;
+  $("#ing-chips").innerHTML = QUICK.map((c,i)=>
+    `<button class="chip${i===0?' active':''}" data-c="${c[1]||''}">${c[0]}</button>`).join("");
+  $("#ing-chips").addEventListener("click",e=>{
+    const b=e.target.closest(".chip"); if(!b) return;
+    ingQuick=b.dataset.c||null;
+    $("#ing-chips").querySelectorAll(".chip").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    $("#ing-type").value="";               // a chip click overrides the dropdown
+    st.apply();
+  });
+
+  st.filter=r=>{
+    const q=$("#ing-q").value.toLowerCase(), t=$("#ing-type").value;
+    const hit=!q || (r.ingredient+" "+r.brand+" "+(r.origin||"")).toLowerCase().includes(q);
+    const typeOk = ingQuick ? matchQuick(ingQuick,r.type) : (!t || r.type===t);
+    return hit && typeOk;
+  };
+
+  // Recompute the top KPI cards from the currently filtered bottle list.
+  st.afterApply = function(list){
+    const rated = list.filter(r=>r.rating!=null);
+    const avg   = rated.length ? rated.reduce((s,r)=>s+r.rating,0)/rated.length : null;
+    const spend = list.reduce((s,r)=>s+(r.cost||0),0);
+    const cpoR  = list.filter(r=>r.cost30!=null);
+    const cpo   = cpoR.length ? cpoR.reduce((s,r)=>s+r.cost30,0)/cpoR.length : null;
+    renderKpis([
+      [list.length, "Bottles"],
+      [avg==null ? "—" : avg.toFixed(2), "Avg rating"],
+      ["$"+Math.round(spend).toLocaleString(), "Total spend"],
+      [cpo==null ? "—" : "$"+cpo.toFixed(2), "Avg cost/oz"],
+    ]);
+  };
+  TAB_ENTER.ing = ()=>st.apply();   // refresh KPIs whenever the Ingredients tab is opened
+
+  makeTable("#ing-table",cols,rows,st);
+
+  // --- selection + printing -------------------------------------------------
+  // Print shows the rows currently visible under the filter; if any boxes are
+  // ticked, it narrows to just those.
+  const visible = () => rows.filter(st.filter);
+  $("#ing-table").addEventListener("change", e => {
+    const cb = e.target.closest(".rowsel"); if(!cb) return;
+    cb.checked ? picked.add(cb.dataset.n) : picked.delete(cb.dataset.n);
+    updatePrintLabel();
+  });
+  function updatePrintLabel(){
+    const n = visible().filter(r=>picked.has(r.ingredient)).length;
+    $("#ing-print").innerHTML = n ? `&#128424; Print ${n} selected` : "&#128424; Print list";
+  }
+
+  // --- column visibility (applies to the page AND the printout) -------------
+  // Hidden columns are left out of the table entirely, so the screen and the
+  // print stay perfectly aligned.
+  const optional = cols.filter(c=>c.key!=="_sel");   // the tick box is always kept
+  const MINIMAL = ["ingredient","brand","type","avgRating"];
+  const shown = new Set(optional.map(c=>c.key));     // default: show everything
+
+  function activeCols(){
+    return cols.filter(c=>c.key==="_sel" || shown.has(c.key));
+  }
+  function rebuild(){
+    makeTable("#ing-table", activeCols(), rows, st);   // st keeps sort + filter
+    $("#ing-cols").innerHTML = `Columns (${shown.size}) &#9662;`;
+    updatePrintLabel();
+  }
+  function buildColList(){
+    $("#ing-collist").innerHTML = optional.map(c=>
+      `<label><input type="checkbox" class="colsel" data-k="${c.key}"${shown.has(c.key)?" checked":""}>`+
+      `${c.label}</label>`).join("");
+  }
+  $("#ing-collist").addEventListener("change", e=>{
+    const cb=e.target.closest(".colsel"); if(!cb) return;
+    cb.checked ? shown.add(cb.dataset.k) : shown.delete(cb.dataset.k);
+    if(!shown.size){ shown.add("ingredient"); buildColList(); }   // never blank
+    rebuild();
+  });
+  $("#ing-colsall").onclick = ()=>{ optional.forEach(c=>shown.add(c.key)); buildColList(); rebuild(); };
+  $("#ing-colsmin").onclick = ()=>{ shown.clear(); MINIMAL.forEach(k=>shown.add(k)); buildColList(); rebuild(); };
+  $("#ing-cols").onclick = e=>{ e.stopPropagation(); const p=$("#ing-colspop"); p.hidden=!p.hidden; };
+  $("#ing-colspop").addEventListener("click", e=>e.stopPropagation());
+  document.addEventListener("click", ()=>{ $("#ing-colspop").hidden = true; });
+  buildColList();
+  rebuild();                                 // draw with the current column set
+  $("#ing-selall").onclick  = ()=>{ visible().forEach(r=>picked.add(r.ingredient)); st.apply(); updatePrintLabel(); };
+  $("#ing-selnone").onclick = ()=>{ picked.clear(); st.apply(); updatePrintLabel(); };
+  $("#ing-print").onclick   = ()=>{
+    const chosen = visible().filter(r=>picked.has(r.ingredient));
+    const list = chosen.length ? chosen : visible();     // nothing ticked = print what's filtered
+    if(!list.length){ alert("Nothing to print — adjust the filter."); return; }
+    const names = new Set(list.map(r=>r.ingredient));
+    // Hide the rows that aren't being printed, print, then restore.
+    // Columns need no special handling — hidden ones aren't in the table.
+    const trs = [...$("#ing-table").querySelectorAll("tbody tr")];
+    trs.forEach(tr=>{
+      const cb = tr.querySelector(".rowsel");
+      if(cb && !names.has(cb.dataset.n)) tr.classList.add("noprint");
+    });
+    const chip = ingQuick || $("#ing-type").value || "All bottles";
+    document.querySelector("main").dataset.printTitle =
+      `Ingredients — ${chip}${chosen.length?" (selected)":""} — ${list.length} of ${rows.length}`;
+    const section = document.querySelector('.tab[data-tab="ing"]');
+    section.classList.add("print-me");
+    document.body.classList.add("printing");
+    window.print();
+    setTimeout(()=>{
+      document.body.classList.remove("printing");
+      section.classList.remove("print-me");
+      trs.forEach(tr=>tr.classList.remove("noprint"));
+      st.apply();          // redraw so the on-screen table is fully restored
+    },300);
+  };
+  const kpiHook = st.afterApply;          // keep the KPI-card refresh
+  st.afterApply = list => { kpiHook(list); updatePrintLabel(); };
+  updatePrintLabel();
+
+  $("#ing-q").oninput=st.apply;
+  $("#ing-type").onchange=()=>{             // picking a dropdown type clears the chip
+    if($("#ing-type").value){
+      ingQuick=null;
+      $("#ing-chips").querySelectorAll(".chip").forEach(x=>x.classList.remove("active"));
+      $('#ing-chips .chip[data-c=""]').classList.add("active");
+    }
+    st.apply();
+  };
+})();
+
+/* ---------- Optional cocktail photo (TheCocktailDB, fetched on request) ----
+   Never loads automatically — only when "Show image" is clicked. Looks up the
+   GENERIC drink name ("Mai Tai"), not the specific variant ("Mai Tai 31").
+   Results are cached for the session so re-opening a card is instant.        */
+const imgCache = new Map();
+async function findCocktailImage(generic){
+  if(imgCache.has(generic)) return imgCache.get(generic);
+  const url = "https://www.thecocktaildb.com/api/json/v1/1/search.php?s="+encodeURIComponent(generic);
+  let out = null;
+  try{
+    const r = await fetch(url);
+    const j = await r.json();
+    const hits = j.drinks || [];
+    // Prefer an exact name match, otherwise take the first result
+    const pick = hits.find(d => (d.strDrink||"").toLowerCase() === generic.toLowerCase()) || hits[0];
+    if(pick && pick.strDrinkThumb){
+      out = {src: pick.strDrinkThumb, name: pick.strDrink,
+             credit: pick.strImageAttribution || null,
+             source: pick.strImageSource || null};
+    }
+  }catch(e){ /* fall through to Wikipedia */ }
+  // Second source: Wikipedia, for drinks the cocktail database doesn't carry
+  if(!out){
+    const w = await findWikiImage(generic+" cocktail", generic);
+    if(w) out = {...w, credit:"Wikipedia"};
+  }
+  imgCache.set(generic, out);
+  return out;
+}
+
+// Resolve the first URL in the list that actually loads as an image.
+function firstLoadable(urls){
+  return new Promise(resolve=>{
+    let i = 0;
+    const tryNext = () => {
+      if(i >= urls.length) return resolve(null);
+      const u = urls[i++];
+      const im = new Image();
+      im.onload  = () => resolve(u);
+      im.onerror = tryNext;
+      im.src = u;
+    };
+    tryNext();
+  });
+}
+
+/* ---- Wikipedia / Wikimedia image lookup (second source) -------------------
+   Used when the cocktail database has nothing. Wikipedia covers most
+   distilleries and many classic drinks. To avoid ever showing something
+   unrelated, the page title must genuinely match what we searched for, and the
+   caption always names the exact page so it's clear what you're looking at.  */
+const STOP = new Set(["the","and","estate","distillery","distillerie","rum","rhum",
+  "whiskey","whisky","bourbon","gin","vodka","tequila","co","company","spirits",
+  "single","blended","reserve","cocktail","drink"]);
+
+function keyWords(s){
+  return String(s||"").toLowerCase().replace(/[^a-z0-9 ]/g," ")
+    .split(/\s+/).filter(w=>w.length>2 && !STOP.has(w));
+}
+
+async function findWikiImage(query, mustMatch){
+  const key = "wiki:"+query;
+  if(imgCache.has(key)) return imgCache.get(key);
+  let out = null;
+  try{
+    const url = "https://en.wikipedia.org/w/api.php?action=query&format=json"+
+      "&formatversion=2&prop=pageimages&piprop=thumbnail|original&pithumbsize=900"+
+      "&generator=search&gsrlimit=5&origin=*&gsrsearch="+encodeURIComponent(query);
+    const r = await fetch(url);
+    const j = await r.json();
+    const pages = (j.query && j.query.pages) || [];
+    // The page must share a distinctive word with what we asked for
+    const want = keyWords(mustMatch || query);
+    const ok = pages.filter(p=>{
+      const src = (p.thumbnail && p.thumbnail.source) || (p.original && p.original.source);
+      if(!src) return false;
+      const title = keyWords(p.title);
+      return want.length ? want.some(w=>title.includes(w)) : true;
+    });
+    if(ok.length){
+      const p = ok[0];
+      out = {src: (p.thumbnail && p.thumbnail.source) || p.original.source,
+             name: p.title, wiki: "https://en.wikipedia.org/wiki/"+
+                   encodeURIComponent(p.title.replace(/ /g,"_"))};
+    }
+  }catch(e){ out = null; }          // offline or blocked — just report nothing
+  imgCache.set(key, out);
+  return out;
+}
+
+/* Bottle photo for a neat pour.
+   IMPORTANT: only ever show a picture of the ACTUAL brand. TheCocktailDB's
+   category images are real product shots (its "Dark rum" is a Captain Morgan
+   bottle), so falling back to a category would show the wrong bottle. We
+   confirm the brand exists as a real entry first; if it doesn't, we show
+   nothing and offer a web search instead.                                    */
+async function findBottleImage(bottle){
+  const key = "bottle:"+bottle.ingredient;
+  if(imgCache.has(key)) return imgCache.get(key);
+  let out = null;
+  const brand = (bottle.brand||"").trim();
+  if(brand){
+    try{
+      const r = await fetch("https://www.thecocktaildb.com/api/json/v1/1/search.php?i="+
+                            encodeURIComponent(brand));
+      const j = await r.json();
+      const hit = (j.ingredients||[]).find(x =>
+        (x.strIngredient||"").toLowerCase() === brand.toLowerCase());
+      if(hit){
+        const src = "https://www.thecocktaildb.com/images/ingredients/"+
+                    encodeURIComponent(hit.strIngredient)+".png";
+        if(await firstLoadable([src]))
+          out = {src, name:hit.strIngredient, credit:"TheCocktailDB", exact:true};
+      }
+    }catch(e){ /* fall through to Wikipedia */ }
+  }
+  // Second source: Wikipedia, searched by brand (+ spirit type for context)
+  if(!out && brand){
+    const w = await findWikiImage(brand+" "+(bottle.type||""), brand);
+    if(w) out = {...w, credit:"Wikipedia"};
+  }
+  imgCache.set(key, out);
+  return out;
+}
+
+// Only make a name clickable if we actually hold details for it
+function linkable(name){
+  return !!(DATA.recipes.some(r=>r.name===name) || DATA.ingredients.some(i=>i.ingredient===name));
+}
+function dlink(name){
+  const n = name==null ? "" : String(name);
+  return linkable(n) ? `<span class="drinklink" data-n="${esc(n)}">${esc(n)}</span>` : esc(n);
+}
+
+/* ============ DRINK DETAIL CARD (opened from Drink History) ============= */
+// Everything is derived from the data already on the page: the recipe comes
+// from DATA.recipes, the rating picture from every Drink_History row for it.
+function openDrink(name){
+  const rec  = DATA.recipes.find(r=>r.name===name);
+  const bott = DATA.ingredients.find(i=>i.ingredient===name);
+  const runs = DATA.history.filter(h=>h.specific===name)
+                           .sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+
+  const score = h => h.avg!=null ? h.avg : h.reed;
+  const all   = runs.map(score).filter(v=>v!=null);
+  const reed  = runs.map(h=>h.reed).filter(v=>v!=null);
+  const cand  = runs.map(h=>h.candice).filter(v=>v!=null);
+  const av    = a => a.length ? a.reduce((s,v)=>s+v,0)/a.length : null;
+
+  const stat = (v,k)=>`<div class="mstat"><div class="v">${v}</div><div class="k">${k}</div></div>`;
+  const stats = [
+    stat(runs.length, runs.length===1?"Time tasted":"Times tasted"),
+    stat(all.length? fmt(av(all)) : "—", "Avg rating"),
+    stat(all.length? fmt(Math.max(...all)) : "—", "Best"),
+    stat(runs[0]?.date || "—", "Last rated"),
+  ].join("");
+
+  const who = `<div class="mwho">
+    <div><div class="n">Reed</div><div class="s" style="color:var(--accent)">
+      ${reed.length? fmt(av(reed))+` <span style="font-size:11px;color:var(--muted)">· ${reed.length}×</span>` : "—"}</div></div>
+    <div><div class="n">Candice</div><div class="s" style="color:var(--pink)">
+      ${cand.length? fmt(av(cand))+` <span style="font-size:11px;color:var(--muted)">· ${cand.length}×</span>` : "not tasted"}</div></div>
+  </div>`;
+
+  // Recipe — or, for a neat pour, the bottle's own details
+  let recipeHtml = "";
+  if(rec && rec.ingredients.length){
+    recipeHtml = `<div class="msec"><h4>Recipe</h4>${
+      rec.ingredients.map(i=>`<div class="ming"><span class="a">${esc(i.amount||"")}</span>`+
+        `<span>${esc(i.ingredient)}</span></div>`).join("")}</div>`;
+  } else if(bott){
+    const bits=[bott.brand,bott.type,bott.proof!=null?bott.proof+" proof":null,
+                bott.origin,bott.cost!=null?money(bott.cost):null].filter(Boolean);
+    recipeHtml = `<div class="msec"><h4>Bottle</h4><div class="mprep">${esc(bits.join(" · "))}</div></div>`;
+  }
+
+  // For a bottle: which drinks it has gone into, and how much of it in total
+  let usageHtml = "";
+  if(bott){
+    const rows = (DATA.usage && DATA.usage[name]) || [];
+    if(rows.length){
+      const totOz  = rows.reduce((s,r)=>s+r.oz,0);
+      const totMk  = rows.reduce((s,r)=>s+r.makes,0);
+      const NEATN  = new Set(["Rum","Whiskey","Gin","Tequila","Vodka","Brandy","Cognac",
+                              "Mezcal","Pisco","Sake","Soju","Aquavit"]);
+      usageHtml = `<div class="msec"><h4>Used in &mdash; ${totMk} pour${totMk===1?"":"s"},
+        ${fmt(totOz,1)} oz total (&asymp; ${(totOz/25.36).toFixed(2)} bottles)</h4>
+        ${rows.map(r=>{
+          const neat = NEATN.has(r.drink);
+          return `<div class="pitem" style="grid-template-columns:1fr 70px 52px">
+            <span class="nm">${neat?"Neat pour":dlink(r.drink)}</span>
+            <span class="oz">${fmt(r.oz,1)} oz</span>
+            <span class="mk2">${r.makes}×</span></div>`;
+        }).join("")}</div>`;
+    }
+  }
+
+  const prep = rec && rec.prep
+    ? `<div class="msec"><h4>Preparation</h4><div class="mprep">${esc(rec.prep)}${
+        rec.link?` &middot; <a href="${esc(rec.link)}" target="_blank">recipe link</a>`:""}</div></div>` : "";
+  const recNotes = rec && rec.notes
+    ? `<div class="msec"><h4>Recipe notes</h4><div class="mprep">${esc(rec.notes)}</div></div>` : "";
+
+  // Dated tasting notes — only the runs that actually carry a comment
+  const noted = runs.filter(h=>h.comment && String(h.comment).trim());
+  const notes = noted.length ? `<div class="msec"><h4>Tasting notes</h4>${
+    noted.map(h=>{
+      const s=score(h);
+      const parts=[h.reed!=null?`Reed ${fmt(h.reed)}`:null,
+                   h.candice!=null?`Candice ${fmt(h.candice)}`:null].filter(Boolean).join(" · ");
+      return `<div class="mnote"><div class="d">${esc(h.date||"")} ${parts?"· "+esc(parts):""}</div>`+
+             `<div class="c">${esc(h.comment)}</div></div>`;
+    }).join("")}</div>` : "";
+
+  const cat = rec?.category || bott?.type || "";
+
+  // Cocktails get a photo of the drink (by its generic name); neat pours get
+  // a picture of the bottle instead.
+  const NEAT = new Set(["Rum","Whiskey","Gin","Tequila","Vodka","Brandy","Cognac",
+                        "Mezcal","Pisco","Sake","Soju","Aquavit"]);
+  const generic = rec?.category || "";
+  const isNeat  = (!generic || NEAT.has(generic)) && !!bott;
+  const canImage = isNeat || (generic && !NEAT.has(generic));
+  const imgLabel = isNeat ? `the bottle` : `${esc(generic)}`;
+  const imgSlot = canImage
+    ? `<div class="mimgwrap" id="mimg-slot">
+         <button class="imgbtn" id="mimg-show">&#128247; Display an image of ${imgLabel}</button>
+       </div>` : "";
+
+  $("#drink-card").innerHTML = `
+    <div class="mhead">
+      <button class="mclose" aria-label="Close">&times;</button>
+      <h3>${esc(name)}</h3>
+      <div class="sub">${esc(cat)}${bott?.brand?" · "+esc(bott.brand):""}</div>
+    </div>
+    <div class="mbody">
+      ${imgSlot}
+      <div class="mstats">${stats}</div>
+      ${who}${recipeHtml}${usageHtml}${prep}${recNotes}${notes}
+    </div>`;
+  $("#drink-modal").hidden = false;
+
+  if(canImage){
+    const slot = $("#mimg-slot");
+    const showBtn = () => {
+      slot.innerHTML = `<button class="imgbtn" id="mimg-show">&#128247; Display an image of ${imgLabel}</button>`;
+      $("#mimg-show").onclick = load;
+    };
+    async function load(){
+      const what = isNeat ? esc(bott.brand || bott.type || name) : esc(generic);
+      slot.innerHTML = `<div class="mimg-msg">Looking for a photo of ${what}&hellip;</div>`;
+      const res = isNeat ? await findBottleImage(bott) : await findCocktailImage(generic);
+      if(!res || res.error || !res.src){
+        // Never substitute a different bottle — offer a real web search instead
+        const q = encodeURIComponent(isNeat ? name+" bottle" : generic+" cocktail");
+        slot.innerHTML = `<div class="mimg-msg">
+          No photo of ${what} is available from the cocktail database.
+          <a href="https://www.google.com/search?tbm=isch&q=${q}" target="_blank"
+             rel="noopener" style="color:var(--accent)">Search the web &#8599;</a>
+          &nbsp;·&nbsp;<a href="#" id="mimg-back" style="color:var(--accent)">Back</a></div>`;
+        $("#mimg-back").onclick = e => {
+          e.preventDefault();
+          imgCache.delete(isNeat ? "bottle:"+bott.ingredient : generic);
+          showBtn();
+        };
+        return;
+      }
+      // Always say where the picture came from. For Wikipedia, name the exact
+      // page and link it, so it's obvious if it's the distillery not the bottle.
+      const credit = res.wiki
+        ? `Wikipedia: <a href="${esc(res.wiki)}" target="_blank" rel="noopener">${esc(res.name)}</a> &#8599;`
+        : (res.credit ? `Photo: ${esc(String(res.credit).split(" http")[0])}` : "Photo: TheCocktailDB");
+      slot.innerHTML = `
+        <img class="mimg" src="${esc(res.src)}" alt="${esc(res.name)}" loading="lazy">
+        <div class="mimg-cap"><span>${credit}</span>
+          <button class="imgbtn" id="mimg-hide" style="padding:3px 9px;font-size:11px">Hide image</button></div>`;
+      $("#mimg-hide").onclick = showBtn;
+      // If the image itself fails to load, fall back to the button
+      slot.querySelector("img").onerror = () => {
+        slot.innerHTML = `<div class="mimg-msg">That image could not be loaded.</div>`;
+      };
+    }
+    $("#mimg-show").onclick = load;
+  }
+}
+function closeDrink(){ $("#drink-modal").hidden = true; }
+$("#drink-modal").addEventListener("click", e=>{
+  if(e.target.id==="drink-modal" || e.target.closest(".mclose")) closeDrink();
+});
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeDrink(); });
+// Any element tagged .drinklink opens the card
+document.addEventListener("click", e=>{
+  const a=e.target.closest(".drinklink"); if(!a) return;
+  e.preventDefault(); openDrink(a.dataset.n);
+});
+
+/* ---- Drinks over time: counts by year / quarter / month ------------------ */
+(function(){
+  const rows = DATA.history.filter(h=>h.date);
+  // Turn a date into the label for the chosen granularity
+  const bucket = (d, g) => {
+    const y = d.slice(0,4), m = +d.slice(5,7);
+    return g==="year"    ? y
+         : g==="quarter" ? `${y} Q${Math.floor((m-1)/3)+1}`
+                         : d.slice(0,7);
+  };
+  let gran = "month";
+  let chart = null;
+
+  $("#hc-gran").innerHTML = [["Year","year"],["Quarter","quarter"],["Month","month"]]
+    .map(([l,v])=>`<button class="chip${v===gran?" active":""}" data-g="${v}">${l}</button>`).join("");
+
+  function series(){
+    const keys = [...new Set(rows.map(h=>bucket(h.date,gran)))].sort();
+    const reed = {}, cand = {};
+    keys.forEach(k=>{ reed[k]=0; cand[k]=0; });
+    rows.forEach(h=>{
+      const k = bucket(h.date,gran);
+      if(h.reed    != null) reed[k]++;
+      if(h.candice != null) cand[k]++;
+    });
+    return {keys, reed:keys.map(k=>reed[k]), cand:keys.map(k=>cand[k])};
+  }
+
+  // Panel listing every drink inside the clicked period
+  function openPeriod(key, who){
+    const inKey = rows.filter(h=>bucket(h.date,gran)===key)
+      .filter(h => who==="reed" ? h.reed!=null : h.candice!=null)
+      .sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+    const scoreOf = h => who==="reed" ? h.reed : h.candice;
+    const vals = inKey.map(scoreOf).filter(v=>v!=null);
+    const avg  = vals.length ? vals.reduce((s,v)=>s+v,0)/vals.length : null;
+    const label = who==="reed" ? "Reed" : "Candice";
+
+    const list = inKey.map(h=>`
+      <div class="pitem" style="grid-template-columns:92px 1fr 54px">
+        <span class="bt" style="text-align:left">${esc(h.date)}</span>
+        <span class="nm">${dlink(h.specific)}</span>
+        <span class="oz" style="color:${rateColor(scoreOf(h))}">${fmt(scoreOf(h))}</span>
+      </div>`).join("") || `<div class="mimg-msg">Nothing recorded.</div>`;
+
+    $("#drink-card").innerHTML = `
+      <div class="mhead">
+        <button class="mclose" aria-label="Close">&times;</button>
+        <h3>${esc(key)} &middot; ${label}</h3>
+        <div class="sub">${inKey.length} drink${inKey.length===1?"":"s"}${
+          avg!=null?` &middot; average ${fmt(avg)}`:""}</div>
+      </div>
+      <div class="mbody"><div class="msec">${list}</div></div>`;
+    $("#drink-modal").hidden = false;
+  }
+
+  function draw(){
+    const s = series();
+    if(chart) chart.destroy();
+    chart = new Chart($("#hist-count"),{
+      type:"line",
+      data:{labels:s.keys,datasets:[
+        {label:"Reed",data:s.reed,borderColor:"#38bdf8",backgroundColor:"#38bdf8",
+         tension:.28,pointRadius:3,pointHoverRadius:6},
+        {label:"Candice",data:s.cand,borderColor:"#f472b6",backgroundColor:"#f472b6",
+         tension:.28,pointRadius:3,pointHoverRadius:6},
+      ]},
+      options:{
+        responsive:true,
+        onClick:(evt,els)=>{
+          if(!els.length) return;
+          const {index,datasetIndex} = els[0];
+          openPeriod(s.keys[index], datasetIndex===0?"reed":"candice");
+        },
+        onHover:(e,els)=>{ e.native.target.style.cursor = els.length?"pointer":"default"; },
+        interaction:{mode:"nearest",intersect:true},
+        plugins:{
+          legend:{labels:{color:"#94a3b8"}},
+          tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y} drink${c.parsed.y===1?"":"s"}`,
+                              footer:()=>"Click to list them"}},
+        },
+        scales:{
+          x:{ticks:{color:"#94a3b8",maxRotation:0,autoSkip:true,maxTicksLimit:14},grid:{display:false}},
+          y:{beginAtZero:true,ticks:{color:"#94a3b8",precision:0},grid:{color:"#334155"}},
+        },
+      },
+    });
+  }
+
+  $("#hc-gran").addEventListener("click", e=>{
+    const b=e.target.closest(".chip"); if(!b) return;
+    gran=b.dataset.g;
+    $("#hc-gran").querySelectorAll(".chip").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    draw();
+  });
+  draw();
+})();
+
+/* ========================= HISTORY ===================================== */
+(function(){
+  // yearly chart
+  const y=DATA.yearly;
+  new Chart($("#hist-year"),{type:"line",data:{labels:y.map(r=>r.year),datasets:[
+    {label:"Reed",data:y.map(r=>r.reedAvg),borderColor:"#38bdf8",backgroundColor:"#38bdf8",tension:.3},
+    {label:"Candice",data:y.map(r=>r.candAvg),borderColor:"#f472b6",backgroundColor:"#f472b6",tension:.3},
+  ]},options:lineOpts()});
+  // distribution
+  const d=DATA.ratingDist;
+  new Chart($("#hist-dist"),{type:"bar",data:{labels:d.labels,datasets:[
+    {label:"Reed",data:d.reed,backgroundColor:"#38bdf8"},
+    {label:"Candice",data:d.candice,backgroundColor:"#f472b6"},
+  ]},options:barOpts(false,true)});
+  // top-rated (2+ makes)
+  const top=DATA.drinkAverages.filter(r=>r.count>=2 && r.avg!=null).slice(0,25);
+  makeTable("#hist-top",[
+    {key:"specific",label:"Drink",fmt:v=>`<span class="drinklink" data-n="${esc(v)}">${esc(v)}</span>`},
+    {key:"avg",label:"Avg rating",cls:"num",fmt:v=>`<span class="rate" style="color:${rateColor(v)}">${fmt(v)}</span>`},
+    {key:"count",label:"Times made",cls:"num"},
+  ],top,{sortKey:"avg",desc:true});
+  // full log
+  const st={countSel:"#hist-count",sortKey:"date",desc:true};
+  const cols=[
+    {key:"date",label:"Date"},
+    {key:"specific",label:"Drink",fmt:v=>`<span class="drinklink" data-n="${esc(v)}">${esc(v)}</span>`},
+    {key:"brand",label:"Brand"},
+    {key:"reed",label:"Reed",cls:"num",fmt:v=>v==null?"":`<span style="color:${rateColor(v)}">${fmt(v)}</span>`},
+    {key:"candice",label:"Candice",cls:"num",fmt:v=>v==null?"":fmt(v)},
+    {key:"avg",label:"Avg",cls:"num",fmt:v=>fmt(v)},
+    {key:"comment",label:"Comment",cls:"comment"},
+  ];
+  st.filter=r=>{
+    const q=$("#hist-q").value.toLowerCase();
+    return !q || ((r.specific||"")+" "+(r.brand||"")+" "+(r.comment||"")).toLowerCase().includes(q);
+  };
+  makeTable("#hist-table",cols,DATA.history,st);
+  $("#hist-q").oninput=st.apply;
+})();
+
+/* ========================= RUMS ======================================= */
+(function(){
+  $("#rum-note").innerHTML = "This tab is generated by filtering Drink_History to rums, so it stays current automatically. "
+    + "Two rums from your old sheet were never logged in history: <b>"+DATA.missingRums.map(esc).join("</b>, <b>")+"</b>.";
+  const st={countSel:"#rum-count",sortKey:"reed",desc:true};
+  const cols=[
+    {key:"date",label:"Date"},
+    {key:"specific",label:"Rum",fmt:v=>dlink(v)},
+    {key:"brand",label:"Brand"},
+    {key:"reed",label:"Rating",cls:"num",fmt:v=>v==null?"":`<span class="rate" style="color:${rateColor(v)}">${fmt(v)}</span>`},
+    {key:"comment",label:"Comment",cls:"comment"},
+  ];
+  st.filter=r=>{
+    const q=$("#rum-q").value.toLowerCase();
+    return !q || ((r.specific||"")+" "+(r.comment||"")).toLowerCase().includes(q);
+  };
+  makeTable("#rum-table",cols,DATA.rums,st);
+  $("#rum-q").oninput=st.apply;
+})();
+
+/* ========================= RECIPES ==================================== */
+(function(){
+  const list=$("#rec-list");
+  const picked=new Set();                 // recipe names ticked for printing
+
+  const filtered = ()=> {
+    const q=$("#rec-q").value.toLowerCase();
+    return DATA.recipes.filter(r=>{
+      if(!q) return true;
+      const ings=r.ingredients.map(i=>i.ingredient).join(" ");
+      return ((r.name||"")+" "+ings).toLowerCase().includes(q);
+    });
+  };
+
+  function draw(){
+    const rows=filtered();
+    $("#rec-count").textContent=rows.length+" drinks";
+    list.innerHTML = rows.map(r=>{
+      const badge = r.avg!=null ? `<span class="badge">&#9733; ${fmt(r.avg)} &middot; ${r.count}×</span>` : "";
+      const ings = r.ingredients.length
+        ? "<ul>"+r.ingredients.map(i=>`<li><span class="amt">${esc(i.amount||"")}</span> ${esc(i.ingredient)}</li>`).join("")+"</ul>"
+        : '<div class="prep">No ingredient list.</div>';
+      const link = r.link ? ` &middot; <a href="${esc(r.link)}" target="_blank">recipe link</a>` : "";
+      const tick = `<input type="checkbox" class="recsel noprint" data-n="${esc(r.name)}"`+
+                   `${picked.has(r.name)?" checked":""} title="Include when printing">`;
+      return `<div class="recipe" data-n="${esc(r.name)}">
+        <h3><span>${tick} ${dlink(r.name)} <span class="cat">${esc(r.category||"")}</span></span>${badge}</h3>
+        ${ings}${r.prep?`<div class="prep">${esc(r.prep)}${link}</div>`:(link?`<div class="prep">${link}</div>`:"")}</div>`;
+    }).join("") || '<div class="prep">No matches.</div>';
+    updateLabel();
+  }
+  function updateLabel(){
+    const n=filtered().filter(r=>picked.has(r.name)).length;
+    $("#rec-print").innerHTML = n ? `&#128424; Print ${n} selected` : "&#128424; Print list";
+  }
+
+  list.addEventListener("change", e=>{
+    const cb=e.target.closest(".recsel"); if(!cb) return;
+    cb.checked ? picked.add(cb.dataset.n) : picked.delete(cb.dataset.n);
+    updateLabel();
+  });
+  $("#rec-selall").onclick  = ()=>{ filtered().forEach(r=>picked.add(r.name)); draw(); };
+  $("#rec-selnone").onclick = ()=>{ picked.clear(); draw(); };
+  let twoUp=false;                                  // print two recipes per row
+  $("#rec-cols2").onclick = ()=>{
+    twoUp=!twoUp;
+    $("#rec-cols2").classList.toggle("active",twoUp);
+  };
+  $("#rec-print").onclick   = ()=>{
+    const chosen=filtered().filter(r=>picked.has(r.name));
+    const rows = chosen.length ? chosen : filtered();   // nothing ticked = print the filtered list
+    if(!rows.length){ alert("Nothing to print — adjust the search."); return; }
+    const names=new Set(rows.map(r=>r.name));
+    const cards=[...list.querySelectorAll(".recipe")];
+    cards.forEach(c=>{ if(!names.has(c.dataset.n)) c.classList.add("noprint"); });
+    const section=document.querySelector('.tab[data-tab="rec"]');
+    document.querySelector("main").dataset.printTitle =
+      `Recipes — ${rows.length} drink${rows.length===1?"":"s"}${chosen.length?" (selected)":""}`;
+    section.classList.add("print-me");
+    document.body.classList.add("printing");
+    if(twoUp) document.body.classList.add("cols2");
+    window.print();
+    setTimeout(()=>{
+      document.body.classList.remove("printing","cols2");
+      section.classList.remove("print-me");
+      cards.forEach(c=>c.classList.remove("noprint"));
+    },300);
+  };
+
+  $("#rec-q").oninput=draw; draw();
+})();
+
+/* ========================= FOURSQUARE ================================= */
+(function(){
+  // Every Foursquare bottle, with its rating record. The Exceptional Cask
+  // Selection releases carry a Roman-numeral "Mark", pulled out for sorting.
+  const ROMAN = {I:1,V:5,X:10,L:50,C:100};
+  const fromRoman = s => {
+    let n=0;
+    for(let i=0;i<s.length;i++){
+      const v=ROMAN[s[i]], nx=ROMAN[s[i+1]];
+      n += (nx && v<nx) ? -v : v;
+    }
+    return n;
+  };
+  // If the same release is held more than once, show it as a single line and
+  // add up what's left across those bottles. Rating figures come from
+  // Drink_History keyed on the name, so they're already identical on each copy
+  // and are carried across as-is (no double counting).
+  const merged = [];
+  const seen = new Map();
+  DATA.ingredients
+    .filter(r => String(r.brand||"").trim().toLowerCase() === "foursquare")
+    .forEach(r => {
+      const key = r.ingredient;
+      if(seen.has(key)){
+        const m = seen.get(key);
+        m.copies += 1;
+        if(r.amt  != null) m.amt  = (m.amt  || 0) + r.amt;
+        if(r.cost != null) m.cost = (m.cost || 0) + r.cost;
+      } else {
+        const copy = {...r, copies:1};
+        seen.set(key, copy);
+        merged.push(copy);
+      }
+    });
+
+  const rows = merged
+    .map(r => {
+      const m = /ECS Mark ([IVXLC]+)\b/i.exec(r.ingredient||"");
+      // Short label: drop the boilerplate from the full bottle name
+      const short = String(r.ingredient||"")
+        .replace(/^Foursquare\s+/i,"")
+        .replace(/\s*Single Blended Rum\s*/i," ")
+        .replace(/\s*ECS Mark [IVXLC]+\s*$/i,"").trim();
+      return {...r,
+        mark: m ? m[1].toUpperCase() : "",
+        // Numeric value behind the Roman numeral — used only for sorting, never
+        // displayed. Non-ECS bottles get a high value so they sort to the end.
+        markNo: m ? fromRoman(m[1].toUpperCase()) : 9999,
+        isEcs: !!m,
+        short: short || r.ingredient};
+    });
+
+  let scope = "all";
+  $("#fsq-scope").innerHTML =
+    [["All","all"],["ECS marks","ecs"],["Rated","rated"],["In stock","stock"]]
+      .map(([l,v])=>`<button class="chip${v===scope?" active":""}" data-s="${v}">${l}</button>`).join("");
+
+  const inScope = r => scope==="ecs" ? r.isEcs
+                     : scope==="rated" ? !!r.nRatings
+                     : scope==="stock" ? r.amt!==0 : true;
+
+  const st = {countSel:"#fsq-count", sortKey:"markNo", desc:false};
+  st.filter = r => {
+    const q = $("#fsq-q").value.toLowerCase();
+    return inScope(r) && (!q || (r.ingredient+" "+r.mark).toLowerCase().includes(q));
+  };
+
+  const cols = [
+    // Sorts on the numeric value, displays the Roman numeral
+    {key:"markNo",label:"Mark",fmt:(v,r)=>r.mark?`<span class="pill">${esc(r.mark)}</span>`:""},
+    // show the short label, but open the card for the full bottle name
+    {key:"short",label:"Release",
+     fmt:(v,r)=>`<span class="drinklink" data-n="${esc(r.ingredient)}" title="${esc(r.ingredient)}">${esc(v)}</span>`
+       + (r.copies>1 ? ` <span class="pill" title="${r.copies} bottles of this release">&times;${r.copies}</span>` : "")},
+    {key:"nRatings",label:"# Ratings",cls:"num",fmt:v=>v==null?"":v},
+    {key:"avgRating",label:"Avg",cls:"num",fmt:v=>v==null?"":`<span class="rate" style="color:${rateColor(v)}">${fmt(v)}</span>`},
+    {key:"highRating",label:"High",cls:"num",fmt:v=>v==null?"":fmt(v)},
+    {key:"lastRated",label:"Last rated",fmt:v=>v==null?"":esc(v)},
+    {key:"amt",label:"Amt left",cls:"num",fmt:v=>v==null?"":fmt(v,2)},
+    {key:"cost",label:"Cost",cls:"num",fmt:money},
+  ];
+
+  // Headline numbers across the whole Foursquare shelf
+  const rated = rows.filter(r=>r.nRatings);
+  const avg = rated.length ? rated.reduce((s,r)=>s+r.avgRating,0)/rated.length : null;
+  const best = rated.length ? rated.reduce((a,b)=>b.avgRating>a.avgRating?b:a) : null;
+  const pours = rows.reduce((s,r)=>s+(r.nRatings||0),0);
+  const marks = rows.filter(r=>r.isEcs).length;
+  $("#fsq-head").innerHTML = `
+    <h2 class="big">&#127463;&#127463; Foursquare</h2>
+    <div class="intro">Every Foursquare release in the collection with its full rating record,
+      shown by ECS Mark. Duplicate bottles of the same release are combined into one line
+      (marked &times;2), with the amount remaining and cost added together.</div>
+    <div class="hero">
+      <div class="tile t-sky"><span class="emoji">&#127862;</span><div class="big">${rows.reduce((s,r)=>s+r.copies,0)}</div><div class="lbl">Bottles</div></div>
+      <div class="tile t-teal"><span class="emoji">&#127991;</span><div class="big">${marks}</div><div class="lbl">ECS marks</div></div>
+      <div class="tile t-gold"><span class="emoji">&#11088;</span><div class="big">${avg!=null?avg.toFixed(2):"—"}</div><div class="lbl">Average rating</div></div>
+      <div class="tile t-pink"><span class="emoji">&#129346;</span><div class="big">${pours}</div><div class="lbl">Times rated</div></div>
+    </div>
+    ${best?`<div class="note" style="margin-bottom:14px">Top of the shelf:
+      <b>${esc(best.short)}</b>${best.mark?` (Mark ${esc(best.mark)})`:""} &mdash; ★ ${fmt(best.avgRating)}</div>`:""}`;
+
+  makeTable("#fsq-table", cols, rows, st);
+  $("#fsq-q").oninput = st.apply;
+  $("#fsq-scope").addEventListener("click", e=>{
+    const b=e.target.closest(".chip"); if(!b) return;
+    scope=b.dataset.s;
+    $("#fsq-scope").querySelectorAll(".chip").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    st.apply();
+  });
+})();
+
+/* ========================= UNUSED ==================================== */
+(function(){
+  const rows=DATA.unused;
+  const st={countSel:"#un-count",sortKey:"type"};
+  const cols=[{key:"ingredient",label:"Ingredient",fmt:v=>dlink(v)},{key:"brand",label:"Brand"},
+    {key:"type",label:"Type",fmt:v=>`<span class="pill">${esc(v)}</span>`}];
+  typeOptions("#un-type",rows.map(r=>r.type),"All types");
+  st.filter=r=>{
+    const q=$("#un-q").value.toLowerCase(), t=$("#un-type").value;
+    return (!q||((r.ingredient||"")+" "+(r.brand||"")).toLowerCase().includes(q)) && (!t||r.type===t);
+  };
+  makeTable("#un-table",cols,rows,st);
+  $("#un-q").oninput=st.apply; $("#un-type").onchange=st.apply;
+})();
+
+/* ========================= INFOGRAPHIC ================================= */
+(function(){
+  const ing = DATA.ingredients.filter(r=>r.amt!==0);   // current inventory only
+  const hist = DATA.history;
+  const m0 = v => "$"+Math.round(v||0).toLocaleString();      // whole dollars
+  const seed = ing[0] || {};
+
+  // Headline numbers
+  const bottles = ing.length;
+  const value   = ing.reduce((s,r)=>s+(r.cost||0),0);
+  const dates   = hist.map(h=>h.date).filter(Boolean).sort();
+  const firstYear = dates.length ? dates[0].slice(0,4) : "—";
+  const rumCount  = ing.filter(r=>r.type==="Rum").length;
+
+  // Shelf breakdown by broad spirit family
+  const family = t => !t ? "Other"
+      : t==="Rum"?"Rum" : t==="Whiskey"?"Whiskey" : t==="Gin"?"Gin"
+      : t==="Tequila"?"Tequila" : /liqueur/i.test(t)?"Liqueur"
+      : t==="Vodka"?"Vodka" : "Other";
+  const fam={}; ing.forEach(r=>{const f=family(r.type); fam[f]=(fam[f]||0)+1;});
+  const famRows=Object.entries(fam).sort((a,b)=>b[1]-a[1]);
+  const famMax=famRows[0][1];
+  const bar=(rows,max)=>rows.map(([n,c])=>`<div class="bar-row"><div class="name">${esc(n)}</div>
+      <div class="track"><div class="fill" style="width:${Math.max(7,c/max*100)}%">${c}</div></div></div>`).join("");
+
+  // Leaderboards
+  const medal=i=>['g','s','b'][i]||'';
+  const topRated=DATA.drinkAverages.filter(r=>r.count>=2&&r.avg!=null).slice(0,5);
+  const ratedList=topRated.map((r,i)=>`<li><span class="rank ${medal(i)}">${i+1}</span>
+      <span class="nm">${dlink(r.specific)}</span><span class="val">★ ${fmt(r.avg)}</span></li>`).join("");
+  const made={}; hist.forEach(h=>{ if(h.drink==="Rum"||h.drink==="Whiskey"||!h.specific) return;
+      made[h.specific]=(made[h.specific]||0)+1; });
+  const topMade=Object.entries(made).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const madeList=topMade.map(([n,c],i)=>`<li><span class="rank ${medal(i)}">${i+1}</span>
+      <span class="nm">${dlink(n)}</span><span class="val">${c}×</span></li>`).join("");
+
+  // Generic leaderboard builder: items = [[label, value], ...]
+  const leadRows=(items,vf)=>items.map((it,i)=>`<li><span class="rank ${medal(i)}">${i+1}</span>`+
+      `<span class="nm">${dlink(it[0])}</span><span class="val">${vf(it[1])}</span></li>`).join("");
+
+  // --- Leaderboards grouped by Drink Name (combines all specific variants) ---
+  const byDrink={}; hist.forEach(h=>{ if(h.drink) (byDrink[h.drink]=byDrink[h.drink]||[]).push(h); });
+  const isNeat=k=>k==="Rum"||k==="Whiskey";   // neat pours logged under the category name
+  const dAvg=rows=>{ const v=rows.map(x=>x.avg!=null?x.avg:x.reed).filter(x=>x!=null);
+      return v.length? v.reduce((s,x)=>s+x,0)/v.length : null; };
+  const madeByDrink=Object.entries(byDrink).filter(([k])=>!isNeat(k))
+      .map(([k,v])=>[k,v.length]).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const ratedByDrink=Object.entries(byDrink).filter(([k,v])=>v.length>=2&&!isNeat(k)&&dAvg(v)!=null)
+      .map(([k,v])=>[k,dAvg(v)]).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const ratedByDrinkList=leadRows(ratedByDrink, v=>"★ "+fmt(v));
+  const madeByDrinkList =leadRows(madeByDrink,  v=>v+"×");
+
+  // --- Favorite rums / whiskeys (highest-rated bottles you own) ---
+  const favBy=type=>ing.filter(r=>r.type===type&&r.rating!=null).sort((a,b)=>b.rating-a.rating).slice(0,5);
+  const favRumsList=leadRows(favBy("Rum").map(r=>[r.ingredient,r.rating]), v=>"★ "+fmt(v));
+  const favWhList  =leadRows(favBy("Whiskey").map(r=>[r.ingredient,r.rating]), v=>"★ "+fmt(v));
+
+  // --- Collection spotlights: Foursquare ECS + Hampden Estate ---
+  const spotlight=rows=>{ const rated=rows.filter(r=>r.rating!=null);
+      const avg=rated.length? rated.reduce((s,r)=>s+r.rating,0)/rated.length : null;
+      const val=rows.reduce((s,r)=>s+(r.cost||0),0);
+      const top=leadRows([...rated].sort((a,b)=>b.rating-a.rating).slice(0,3).map(r=>[r.ingredient,r.rating]), v=>"★ "+fmt(v));
+      return {n:rows.length, avg, val, top}; };
+  const ecs=spotlight(ing.filter(r=>r.type==="Rum"&&/ecs mark/i.test(r.ingredient)));
+  const ham=spotlight(ing.filter(r=>(r.brand||"")==="Hampden Estate"));
+
+  // Stat block + spotlight card renderers
+  const stat=(num,lbl)=>`<div><div style="font-size:26px;font-weight:800;color:var(--accent2);line-height:1">${num}</div>`+
+      `<div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:5px">${lbl}</div></div>`;
+  const spotCard=(title,emoji,s,unit)=>`<div class="info-sec"><h3>${emoji} ${title}</h3>`+
+      `<div style="display:flex;gap:24px;align-items:flex-start;margin-bottom:12px">`+
+      stat(s.n,unit)+stat(s.avg!=null?"★ "+s.avg.toFixed(2):"—","avg rating")+stat(m0(s.val),"value")+
+      `</div><ul class="lead">${s.top}</ul></div>`;
+
+  // Reed vs. Candice
+  const both=hist.filter(h=>h.reed!=null&&h.candice!=null);
+  const mean=(a,f)=>a.length? a.reduce((s,x)=>s+f(x),0)/a.length : 0;
+  const rAvg=mean(both,h=>h.reed), cAvg=mean(both,h=>h.candice);
+  const agree=both.length? Math.round(both.filter(h=>Math.abs(h.reed-h.candice)<=1).length/both.length*100) : 0;
+
+  // Superlatives
+  const priciest = ing.reduce((a,b)=>(b.cost||0)>(a.cost||0)?b:a, seed);
+  const valueBuys= ing.filter(r=>r.rating!=null&&r.rating>=9&&r.cost30!=null);
+  const bestValue= valueBuys.length? valueBuys.reduce((a,b)=>b.cost30<a.cost30?b:a) : null;
+  const proofy   = ing.filter(r=>r.proof!=null).reduce((a,b)=>b.proof>a.proof?b:a, seed);
+  const brandC={}; ing.forEach(r=>{ if(r.brand) brandC[r.brand]=(brandC[r.brand]||0)+1; });
+  const topBrand=Object.entries(brandC).sort((a,b)=>b[1]-a[1])[0];
+  const perfect=hist.filter(h=>h.reed!=null&&h.reed>=10).length;
+  const bigYear=[...DATA.yearly].sort((a,b)=>b.n-a.n)[0];
+
+  // Origins (country ≈ text after the last comma)
+  const country=o=>{ if(!o) return null; const p=String(o).split(','); return p[p.length-1].trim(); };
+  const oc={}; ing.forEach(r=>{const c=country(r.origin); if(c) oc[c]=(oc[c]||0)+1;});
+  const topO=Object.entries(oc).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const oMax=topO.length? topO[0][1] : 1;
+
+  $("#info-body").innerHTML = `
+    <h2 class="big">&#127864; Reed&rsquo;s Bar, by the Numbers</h2>
+    <div class="intro">A fun snapshot of the collection and ${DATA.stats.tastings} tastings since ${firstYear}. (Initial version &mdash; tell me what to add, cut, or restyle.)</div>
+
+    <div class="hero">
+      <div class="tile t-sky"><span class="emoji">&#127870;</span><div class="big">${bottles}</div><div class="lbl">Bottles in stock</div></div>
+      <div class="tile t-gold"><span class="emoji">&#129346;</span><div class="big">${DATA.stats.tastings}</div><div class="lbl">Tastings logged</div></div>
+      <div class="tile t-pink"><span class="emoji">&#127796;</span><div class="big">${rumCount}</div><div class="lbl">Rums &mdash; your favorite</div></div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-sec"><h3>&#127942; Highest rated &mdash; specific recipe <span style="color:var(--muted);font-weight:400;font-size:12px">(2+)</span></h3><ul class="lead">${ratedList}</ul></div>
+      <div class="info-sec"><h3>&#128257; Most made &mdash; specific recipe</h3><ul class="lead">${madeList}</ul></div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-sec"><h3>&#127942; Highest rated &mdash; by drink <span style="color:var(--muted);font-weight:400;font-size:12px">(2+, variants combined)</span></h3><ul class="lead">${ratedByDrinkList}</ul></div>
+      <div class="info-sec"><h3>&#128257; Most made &mdash; by drink <span style="color:var(--muted);font-weight:400;font-size:12px">(variants combined)</span></h3><ul class="lead">${madeByDrinkList}</ul></div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-sec"><h3>&#127796; Favorite rums <span style="color:var(--muted);font-weight:400;font-size:12px">(top rated)</span></h3><ul class="lead">${favRumsList}</ul></div>
+      <div class="info-sec"><h3>&#129347; Favorite whiskeys <span style="color:var(--muted);font-weight:400;font-size:12px">(top rated)</span></h3><ul class="lead">${favWhList}</ul></div>
+    </div>
+
+    <div class="info-grid">
+      ${spotCard("Foursquare ECS","&#127463;&#127463;",ecs,"marks owned")}
+      ${spotCard("The Hampdens","&#127471;&#127474;",ham,"bottles")}
+    </div>
+
+    <div class="info-sec"><h3>&#129380; What&rsquo;s on the shelf</h3><div class="bars">${bar(famRows,famMax)}</div></div>
+
+    <div class="info-grid">
+      <div class="info-sec"><h3>&#128108; Reed vs. Candice</h3>
+        <div class="vs">
+          <div class="p"><div class="av" style="color:var(--accent)">${rAvg.toFixed(1)}</div><div class="nm">Reed</div></div>
+          <div class="mid">${agree}% agree<br><span style="font-size:11px">(within 1 pt)</span></div>
+          <div class="p"><div class="av" style="color:var(--pink)">${cAvg.toFixed(1)}</div><div class="nm">Candice</div></div>
+        </div>
+        <div class="intro" style="margin:14px 0 0;text-align:center">Across ${both.length} drinks you both rated.</div>
+      </div>
+      <div class="info-sec"><h3>&#127757; Where it&rsquo;s from</h3><div class="bars">${bar(topO,oMax)}</div></div>
+    </div>
+
+    <div class="info-sec"><h3>&#10024; Superlatives</h3>
+      <div class="super">
+        <div class="s"><div class="k">Priciest bottle</div><div class="v">${esc(priciest.ingredient)}</div><div class="sub">${m0(priciest.cost)}</div></div>
+        <div class="s"><div class="k">Best value (rated 9+)</div><div class="v">${bestValue?esc(bestValue.ingredient):'&mdash;'}</div><div class="sub">${bestValue?'$'+bestValue.cost30.toFixed(2)+' / oz &middot; ★ '+fmt(bestValue.rating):''}</div></div>
+        <div class="s"><div class="k">Highest proof</div><div class="v">${esc(proofy.ingredient)}</div><div class="sub">${proofy.proof} proof</div></div>
+        <div class="s"><div class="k">Most-owned brand</div><div class="v">${topBrand?esc(topBrand[0]):'&mdash;'}</div><div class="sub">${topBrand?topBrand[1]+' bottles':''}</div></div>
+        <div class="s"><div class="k">Perfect pours (10+)</div><div class="v">${perfect}</div><div class="sub">tastings Reed scored 10+</div></div>
+        <div class="s"><div class="k">Busiest year</div><div class="v">${bigYear?bigYear.year:'&mdash;'}</div><div class="sub">${bigYear?bigYear.n+' tastings':''}</div></div>
+      </div>
+    </div>
+  `;
+})();
+
+/* ========================= CONSUMPTION ================================= */
+(function(){
+  const P = DATA.pours.filter(p=>p.oz>0);
+  const T = DATA.pourTotals;
+  const top = P.slice(0,12);                       // headline spirit types
+  const maxOz = top.length ? top[0].oz : 1;
+  const maxMk = Math.max(1, ...top.map(p=>Math.max(p.reed,p.candice)));
+  const label = t => t==="Other" ? "Other / blends" : t;
+
+  const open = new Set();          // spirit types currently expanded
+
+  function rowHtml(p){
+    const isOpen = open.has(p.type);
+    const items = (p.items||[]);
+    const row = `
+    <div class="prow" data-t="${esc(p.type)}">
+      <div class="pname"><span class="chev">&#9656;</span>${esc(label(p.type))}</div>
+      <div class="ptrack"><div class="pfill" style="width:${Math.max(9,p.oz/maxOz*100)}%">${Math.round(p.oz)} oz</div></div>
+      <div class="pbtl">&asymp; ${p.bottles} btl</div>
+      <div class="mk">
+        <div class="mrow"><span class="mlbl">You</span><div class="mtrack"><div class="mfill reed" style="width:${p.reed/maxMk*100}%"></div></div><span class="mv">${p.reed}</span></div>
+        <div class="mrow"><span class="mlbl">Candice</span><div class="mtrack"><div class="mfill cand" style="width:${p.candice/maxMk*100}%"></div></div><span class="mv">${p.candice}</span></div>
+      </div>
+    </div>`;
+    if(!isOpen) return row;
+    const detail = items.length
+      ? items.map(i=>`<div class="pitem">
+            <span class="nm">${dlink(i.ingredient)}</span>
+            <span class="oz">${Math.round(i.oz)} oz</span>
+            <span class="bt">&asymp; ${i.bottles} btl</span>
+            <span class="mk2">${i.makes}×</span></div>`).join("")
+      : `<div class="pitem"><span class="nm" style="color:var(--muted)">No itemised bottles for this type.</span></div>`;
+    return row + `<div class="pitems">${detail}</div>`;
+  }
+
+  function renderRows(){
+    $("#cons-rows").innerHTML = top.map(rowHtml).join("");
+    $("#cons-rows").querySelectorAll(".prow").forEach(el=>{
+      el.onclick = e => {
+        if(e.target.closest(".drinklink")) return;   // let name clicks open the card
+        const t = el.dataset.t;
+        open.has(t) ? open.delete(t) : open.add(t);
+        renderRows();
+      };
+    });
+  }
+  const more = P.length - top.length;
+
+  $("#cons-body").innerHTML = `
+    <h2 class="big">&#129379; What We&rsquo;ve Poured</h2>
+    <div class="intro">Total volume of each spirit type used across the ${DATA.stats.tastings} cocktails you&rsquo;ve logged, and how many of those makes each of you was there for. Volume weights every recipe by the number of times it was made.</div>
+    <div class="hero">
+      <div class="tile t-gold"><span class="emoji">&#129379;</span><div class="big">${T.bottles}</div><div class="lbl">Bottles poured (750ml eq.)</div></div>
+      <div class="tile t-teal"><span class="emoji">&#129347;</span><div class="big">${Math.round(T.oz).toLocaleString()}</div><div class="lbl">Total ounces</div></div>
+      <div class="tile t-sky"><span class="emoji">&#128104;</span><div class="big">${T.reed}</div><div class="lbl">Your makes</div></div>
+      <div class="tile t-pink"><span class="emoji">&#128105;</span><div class="big">${T.candice}</div><div class="lbl">Candice&rsquo;s makes</div></div>
+    </div>
+    <div class="info-sec">
+      <h3>By spirit type &mdash; volume poured &amp; times made
+        <span class="legend"><span><span class="dot" style="background:var(--accent)"></span>You</span><span><span class="dot" style="background:var(--pink)"></span>Candice</span></span>
+      </h3>
+      <div class="intro" style="margin:-4px 0 10px">Click a spirit type to see the individual bottles that make it up.</div>
+      <div class="pours" id="cons-rows"></div>
+      ${more>0?`<div class="intro" style="margin:12px 0 0">+ ${more} smaller categories not shown.</div>`:""}
+    </div>`;
+  renderRows();
+})();
+
+// Landing tab is the Infographic, so show the headline totals on load
+// (overrides the per-filter cards the Ingredients tab set while building).
+renderKpis(globalCards);
+
+/* ---------- chart option helpers (dark theme) ----------------------------- */
+function rateColor(v){ return v>=9?"#4ade80": v>=7?"#5eead4": v>=5?"#fbbf24":"#f87171"; }
+function barOpts(money,stacked){
+  return {responsive:true,plugins:{legend:{display:!!stacked,labels:{color:"#94a3b8"}}},
+    scales:{x:{ticks:{color:"#94a3b8",font:{size:10}},grid:{display:false},stacked:!!stacked},
+            y:{ticks:{color:"#94a3b8",callback:v=>money?"$"+v:v},grid:{color:"#334155"},stacked:!!stacked}}};
+}
+function lineOpts(){
+  return {responsive:true,plugins:{legend:{labels:{color:"#94a3b8"}}},
+    scales:{x:{ticks:{color:"#94a3b8"},grid:{display:false}},
+            y:{ticks:{color:"#94a3b8"},grid:{color:"#334155"}}}};
+}
+
+})();   /* ---- end of boot(): everything above needed the fetched data ---- */
+
+/* Turn on the service worker so the app works with no signal and can be
+   installed on the home screen. If it fails the app still runs, just online
+   only - so this never blocks anything. */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("sw.js").catch(function(){});
+  });
+}
+</script>
+</body>
+</html>
