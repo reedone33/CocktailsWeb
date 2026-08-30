@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- A name for this job. Must match the filename. -->
+  <key>Label</key>
+  <string>com.reed.cocktailsweb</string>
+
+  <!-- What to run: the publish script, in unattended mode. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/reed/Library/CloudStorage/OneDrive-Personal/0 Claude Cowork Playground/Cocktails/CocktailsWeb/publish.sh</string>
+    <string>--auto</string>
+  </array>
+
+  <!-- When to run it: whenever the workbook changes. macOS watches the file
+       and starts the job on its own. Excel saves fire several events, which
+       is why publish.sh waits for the file to settle and holds a lock. -->
+  <key>WatchPaths</key>
+  <array>
+    <string>/Users/reed/Library/CloudStorage/OneDrive-Personal/0 Claude Cowork Playground/Cocktails/CocktailsClaude-Slim.xlsx</string>
+  </array>
+
+  <!-- Background jobs get a bare-bones PATH, so spell it out. Homebrew paths
+       are included in case python3 or git come from there. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <!-- Don't run at login, and don't restart if it exits. It should only ever
+       run in response to the workbook changing. -->
+  <key>RunAtLoad</key>
+  <false/>
+  <key>KeepAlive</key>
+  <false/>
+
+  <!-- Anything the script prints that isn't already in its own log. -->
+  <key>StandardOutPath</key>
+  <string>/Users/reed/Library/Logs/cocktailsweb-launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/reed/Library/Logs/cocktailsweb-launchd.log</string>
+</dict>
+</plist>

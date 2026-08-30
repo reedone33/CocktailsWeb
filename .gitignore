@@ -10,3 +10,12 @@
 
 # Anything staged for deletion by a Cowork session
 _to_delete/
+
+# The lock the publisher holds while it runs
+.publish.lock/
+
+# Never publish the un-encrypted data. publish.sh writes it to a temp file
+# outside this folder, but this is a belt-and-braces guard because the commit
+# adds everything here.
+cocktails-plain*.json
+*.plain.json

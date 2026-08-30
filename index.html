@@ -107,6 +107,22 @@
         padding:10px 14px;border-radius:8px;margin-bottom:14px}
 
 
+  /* ---- Lock screen -------------------------------------------------------- */
+  #lock{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;
+        align-items:center;justify-content:center;padding:24px}
+  #lock .box{width:100%;max-width:340px;text-align:center}
+  #lock h2{font-size:20px;margin:0 0 6px;font-weight:600}
+  #lock p{color:var(--muted);font-size:13px;margin:0 0 20px;line-height:1.5}
+  #lock input[type=password]{width:100%;background:var(--panel);border:1px solid var(--line);
+        color:var(--text);padding:12px 14px;border-radius:10px;font-size:16px;outline:none}
+  #lock input[type=password]:focus{border-color:var(--accent)}
+  #lock button{width:100%;margin-top:10px;background:var(--accent);color:#0f172a;border:none;
+        padding:12px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer}
+  #lock button:disabled{opacity:.55;cursor:default}
+  #lock .remember{display:flex;align-items:center;gap:8px;justify-content:center;
+        margin-top:14px;color:var(--muted);font-size:12.5px;cursor:pointer}
+  #lock .err{color:#f87171;font-size:13px;margin-top:12px;min-height:18px}
+
   /* ---- Bar tab: the inventory grid ---------------------------------------- */
   /* `hidden` alone is not enough here: the browser's own rule for it is weak,
      and any element given a display of its own (like the grid below) would
@@ -400,6 +416,22 @@
   <div class="mcard" id="drink-card"></div>
 </div>
 
+<div id="lock" hidden>
+  <div class="box">
+    <h2>&#127864; Last Call</h2>
+    <p>Your bar data is encrypted. Enter your passphrase to open it.</p>
+    <form id="lock-form">
+      <input type="password" id="lock-pass" autocomplete="current-password"
+             placeholder="Passphrase" autofocus>
+      <button type="submit" id="lock-go">Unlock</button>
+      <label class="remember">
+        <input type="checkbox" id="lock-remember"> Remember on this device
+      </label>
+    </form>
+    <div class="err" id="lock-err"></div>
+  </div>
+</div>
+
 <div id="boot-error" hidden
      style="margin:24px;padding:16px 18px;border:1px solid #7f1d1d;background:#2a1212;border-radius:12px">
   <b>Couldn&rsquo;t load the bar data.</b>
@@ -544,6 +576,77 @@
 
 <script>
 /* ===========================================================================
+   Opening the encrypted data file.
+   ---------------------------------------------------------------------------
+   The site is public - GitHub Pages cannot serve a private repository on the
+   free plan - so the data is encrypted and the URL on its own is useless.
+   These helpers sit outside boot() to keep it readable. All the actual crypto
+   is the browser's own (WebCrypto); none of it is hand-rolled.
+   =========================================================================== */
+
+/* base64 text -> raw bytes */
+const b64ToBytes = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+
+const LOCK_KEY = "lastcall.pass";      /* where "remember me" stores it */
+
+/* Turn the typed passphrase into an AES key, the same way the build script
+   does. The numbers here MUST match Tools/encrypt_data.py. */
+async function deriveKey(passphrase, salt, iterations){
+  const base = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(passphrase), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
+    base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+}
+
+/* Decrypt, un-squash, and parse. Throws if the passphrase is wrong - AES-GCM
+   verifies the data as well as decrypting it, so a bad key fails loudly
+   instead of returning nonsense. */
+async function openEnvelope(env, passphrase){
+  const key = await deriveKey(passphrase, b64ToBytes(env.salt), env.iterations);
+  const squashed = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: b64ToBytes(env.iv) }, key, b64ToBytes(env.data));
+  if (env.compression === "gzip"){
+    if (typeof DecompressionStream !== "function")
+      throw new Error("This browser is too old to un-compress the data.");
+    const stream = new Blob([squashed]).stream()
+                     .pipeThrough(new DecompressionStream("gzip"));
+    return JSON.parse(await new Response(stream).text());
+  }
+  return JSON.parse(new TextDecoder().decode(squashed));
+}
+
+/* Show the lock screen and keep asking until the passphrase works. */
+function askAndOpen(env){
+  return new Promise(resolve => {
+    const lock = document.getElementById("lock");
+    const form = document.getElementById("lock-form");
+    const pass = document.getElementById("lock-pass");
+    const go   = document.getElementById("lock-go");
+    const err  = document.getElementById("lock-err");
+    const keep = document.getElementById("lock-remember");
+    lock.hidden = false;
+    setTimeout(() => pass.focus(), 50);
+
+    form.onsubmit = async e => {
+      e.preventDefault();
+      go.disabled = true; err.textContent = "Opening…";
+      try {
+        const data = await openEnvelope(env, pass.value);
+        if (keep.checked) { try { localStorage.setItem(LOCK_KEY, pass.value); } catch(_){} }
+        lock.hidden = true;
+        resolve(data);
+      } catch (_) {
+        // Deliberately vague: the only useful thing to say is that it failed.
+        err.textContent = "That passphrase didn't open it.";
+        pass.select();
+        go.disabled = false;
+      }
+    };
+  });
+}
+
+/* ===========================================================================
    Last Call.
    The bar data is fetched from cocktails.json rather than written into this
    page, so refreshing the app means republishing a data file, not a 1 MB
@@ -558,7 +661,21 @@ try {
   // the service worker still serves the cached file when there is no signal.
   const res = await fetch("cocktails.json", { cache: "no-cache" });
   if (!res.ok) throw new Error("HTTP " + res.status);
-  DATA = await res.json();
+  const payload = await res.json();
+
+  if (payload && payload.cipher) {
+    // Encrypted. Try a remembered passphrase first so the app opens straight
+    // up on the phone; fall back to asking.
+    let saved = null;
+    try { saved = localStorage.getItem(LOCK_KEY); } catch(_){}
+    if (saved) {
+      try { DATA = await openEnvelope(payload, saved); }
+      catch(_) { try { localStorage.removeItem(LOCK_KEY); } catch(_){} }
+    }
+    if (!DATA) DATA = await askAndOpen(payload);
+  } else {
+    DATA = payload;                      // plain file - nothing to open
+  }
 } catch (err) {
   document.getElementById("boot-error").hidden = false;
   document.getElementById("boot-error-detail").textContent = String(err);
