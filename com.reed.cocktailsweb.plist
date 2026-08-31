@@ -15,12 +15,20 @@
     <string>--auto</string>
   </array>
 
-  <!-- When to run it: whenever the workbook changes. macOS watches the file
-       and starts the job on its own. Excel saves fire several events, which
-       is why publish.sh waits for the file to settle and holds a lock. -->
+  <!-- When to run it: whenever anything in the Cocktails FOLDER changes.
+       Watching the folder rather than the workbook itself is deliberate.
+       Excel and openpyxl never edit a file in place - they write a temp file
+       and rename it over the original, which replaces the underlying inode.
+       A watch pointed at the file is then watching something that no longer
+       exists and stops firing. The rename does show up as a change to the
+       folder, so that is what we watch.
+
+       The cost is that any change in the folder wakes the job. That is fine:
+       publish.sh exits in about two seconds unless the workbook is actually
+       newer than the last publish. -->
   <key>WatchPaths</key>
   <array>
-    <string>/Users/reed/Library/CloudStorage/OneDrive-Personal/0 Claude Cowork Playground/Cocktails/CocktailsClaude-Slim.xlsx</string>
+    <string>/Users/reed/Library/CloudStorage/OneDrive-Personal/0 Claude Cowork Playground/Cocktails</string>
   </array>
 
   <!-- Background jobs get a bare-bones PATH, so spell it out. Homebrew paths

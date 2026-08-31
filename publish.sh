@@ -52,7 +52,16 @@ if ! mkdir "$LOCK" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
 
+STAMP_FILE="$APP/.last-publish"
+
 say "--- publish start (auto=$AUTO) ---"
+
+# Unattended runs bail out early if there is genuinely nothing new. Running by
+# hand always rebuilds, so you can force a publish when you want one.
+if [ "$AUTO" = "1" ] && [ -f "$STAMP_FILE" ] && [ ! "$BOOK" -nt "$STAMP_FILE" ]; then
+  say "Workbook unchanged since the last publish - nothing to do."
+  exit 0
+fi
 
 # --- Checks -------------------------------------------------------------------
 for c in python3 git; do command -v $c >/dev/null || { say "ERROR: $c not found"; exit 1; }; done
@@ -140,5 +149,8 @@ Published. On your phone: close the app fully from the app switcher and reopen."
 else
   say "Nothing changed - nothing published."
 fi
+
+# Remember how far we got, so the next poll can tell whether there is new work.
+touch "$STAMP_FILE"
 
 say "--- publish done ---"

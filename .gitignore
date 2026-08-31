@@ -19,3 +19,6 @@ _to_delete/
 # adds everything here.
 cocktails-plain*.json
 *.plain.json
+
+# When the publisher last ran, so a poll can skip idle runs
+.last-publish
