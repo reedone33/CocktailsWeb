@@ -788,8 +788,11 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
       "<b>" + esc(listTitle) + "</b> &mdash; " + listRows.length + " bottle" +
       (listRows.length === 1 ? "" : "s") + " open.";
     const q = query.trim().toLowerCase();
+    // String() matters: a few cells are stored as numbers in Excel (the brand
+    // "1792" is one), and calling toLowerCase on a number crashes the search.
+    const txt = v => (v == null ? "" : String(v)).toLowerCase();
     let rows = !q ? listRows : listRows.filter(r =>
-      (r.ingredient || "").toLowerCase().includes(q) || (r.brand || "").toLowerCase().includes(q));
+      txt(r.ingredient).includes(q) || txt(r.brand).includes(q) || txt(r.type).includes(q));
 
     rows = rows.slice().sort((a,b) => {
       let x, y;
@@ -813,7 +816,9 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
       '</div>' +
       (rows.length ? rows.map(r =>
         '<div class="bottle">' +
-          '<div class="bname">' + esc(r.ingredient) + '</div>' +
+          // dlink() makes the name tappable; it opens the same detail card
+          // the Ingredients tab uses (the page-wide .drinklink click handler).
+          '<div class="bname">' + dlink(r.ingredient) + '</div>' +
           (r.brand ? '<div class="bbrand">' + esc(r.brand) + '</div>' : '') +
           '<div class="bfields">' +
             field("Type",       esc(r.type)) +
