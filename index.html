@@ -207,6 +207,26 @@
   .vs .p .nm{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
   .vs .mid{font-size:13px;color:var(--muted);line-height:1.4}
 
+  /* ---- Wine tab --------------------------------------------------------- */
+  .wsoon{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+  .wsoon .w{background:var(--panel2);border-radius:12px;padding:12px 14px;border-left:4px solid #fbbf24}
+  .wsoon .w.past{border-left-color:#f87171}
+  .wsoon .w.next{border-left-color:#5eead4}
+  .wsoon .w .t{font-weight:600;font-size:13.5px;line-height:1.3}
+  .wsoon .w .m{color:var(--muted);font-size:12px;margin-top:4px}
+  .wbadge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+  .wbadge.past{background:#3b1414;color:#fca5a5}
+  .wbadge.now{background:#3a2e0b;color:#fcd34d}
+  .wbadge.next{background:#0d3330;color:#5eead4}
+  .wbadge.hold{background:var(--panel2);color:var(--muted)}
+  .wbadge.gone{background:var(--panel2);color:#64748b}
+  .winelink{color:var(--accent);cursor:pointer;border-bottom:1px dotted rgba(56,189,248,.5)}
+  .winelink:hover{color:var(--accent2)}
+  .wempty{color:var(--muted);font-size:13px;line-height:1.5}
+  .wempty code{background:var(--panel2);padding:1px 6px;border-radius:6px;font-size:12px}
+  .wgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:820px){.wgrid{grid-template-columns:1fr}}
+
   /* Drink detail modal (Drink History tab) */
   .drinklink{color:var(--accent);cursor:pointer;border-bottom:1px dotted rgba(56,189,248,.5)}
   .drinklink:hover{color:var(--accent2);border-bottom-color:var(--accent2)}
@@ -572,6 +592,41 @@
     </div>
     <div class="tablewrap"><table id="un-table"></table></div>
   </section>
+  <section class="tab" data-tab="wine">
+    <div class="intro">Your wine cellar, from the <b>Wine Cellar</b> sheet. Drink-by years are estimates
+      unless the back label gave one. Tap a wine for its details and tasting history.</div>
+    <div class="info-sec">
+      <h3>&#9200; Drink soon</h3>
+      <div class="wsoon" id="wine-soon"></div>
+    </div>
+    <div class="wgrid">
+      <div class="info-sec" style="margin-top:0">
+        <h3>&#11088; Top rated</h3>
+        <div id="wine-top"></div>
+      </div>
+      <div class="info-sec" style="margin-top:0">
+        <h3>&#127863; Recently opened</h3>
+        <div id="wine-recent"></div>
+      </div>
+    </div>
+    <div class="info-sec">
+      <h3>&#128230; Where it lives &amp; who made it</h3>
+      <div class="wgrid">
+        <div class="bars" id="wine-loc"></div>
+        <div class="bars" id="wine-prod"></div>
+      </div>
+    </div>
+    <div class="controls">
+      <input type="search" id="wine-q" placeholder="Search wine, producer, grape, region&hellip;">
+      <select id="wine-loc-f"></select>
+      <select id="wine-prod-f"></select>
+      <select id="wine-country-f"></select>
+      <label class="count" style="display:flex;gap:6px;align-items:center;cursor:pointer">
+        <input type="checkbox" id="wine-gone"> Show finished bottles</label>
+      <span class="count" id="wine-count"></span>
+    </div>
+    <div class="tablewrap"><table id="wine-table"></table></div>
+  </section>
 </main>
 
 <script>
@@ -899,7 +954,7 @@ renderKpis(globalCards);
 const TAB_ENTER = {};   // optional per-tab hook to refresh the KPI cards on entry
 
 const TABS = [["bar","Bar"],["info","Infographic"],["ing","Ingredients"],["rec","Recipes"],["hist","Drink History"],
-              ["cons","Consumption"],["pour","Pour Costs"],["inv","Inventory & Costs"],["rums","Rums"],
+              ["cons","Consumption"],["pour","Pour Costs"],["inv","Inventory & Costs"],["rums","Rums"],["wine","Wine"],
               ["fsq","Foursquare"],["unused","Unused"]];
 $("#nav").innerHTML = TABS.map((t,i)=>`<button data-t="${t[0]}" class="${i===0?'active':''}">${t[1]}</button>`).join("");
 $("#nav").addEventListener("click",e=>{
@@ -2148,6 +2203,170 @@ document.addEventListener("click", e=>{
 // Landing tab is the Infographic, so show the headline totals on load
 // (overrides the per-filter cards the Ingredients tab set while building).
 renderKpis(globalCards);
+
+/* ========================= WINE ========================================== */
+/* Built from DATA.wines (the cellar) and DATA.wineHistory (bottles opened,
+   with ratings). Wrapped in try/catch so a problem here can never blank out
+   the other tabs.                                                          */
+(function(){
+  try {
+  const W  = DATA.wines || [];
+  const WH = DATA.wineHistory || [];
+  const YEAR = new Date().getFullYear();
+  const wname = w => `${w.wine}${w.vintage ? " " + w.vintage : " NV"}`;
+
+  // Where a bottle sits against its drink-by year.
+  function status(w){
+    if(!w.qty)                       return {cls:"gone", txt:"Finished"};
+    if(w.by == null)                 return {cls:"hold", txt:"—"};
+    if(w.by <  YEAR)                 return {cls:"past", txt:"Past window"};
+    if(w.by === YEAR)                return {cls:"now",  txt:"Drink this year"};
+    if(w.by === YEAR + 1)            return {cls:"next", txt:"Drink next year"};
+    return {cls:"hold", txt:"Hold to " + w.by};
+  }
+  const link = (w, i) => `<span class="winelink" data-w="${i}">${esc(wname(w))}</span>`;
+  W.forEach((w,i) => { w._i = i; w._st = status(w); w._name = wname(w); });
+
+  /* ---- KPI cards when the tab is opened ---- */
+  const inCellar = W.filter(w => w.qty > 0);
+  const bottles  = inCellar.reduce((t,w) => t + w.qty, 0);
+  const soon     = inCellar.filter(w => w.by != null && w.by <= YEAR + 1)
+                           .sort((a,b) => a.by - b.by || (a.vintage||0) - (b.vintage||0));
+  const soonBottles = soon.reduce((t,w) => t + w.qty, 0);
+  TAB_ENTER.wine = () => renderKpis([[bottles,"Bottles in cellar"],[inCellar.length,"Wines"],
+                                     [soonBottles,"Drink soon"],[WH.length,"Bottles opened"]]);
+
+  /* ---- Drink soon ---- */
+  $("#wine-soon").innerHTML = soon.length ? soon.map(w => `
+      <div class="w ${w._st.cls}">
+        <div class="t">${link(w, w._i)}</div>
+        <div class="m">${esc(w.producer)} · ${w.qty} bottle${w.qty>1?"s":""} · ${esc(w.location||"")}</div>
+        <div class="m"><span class="wbadge ${w._st.cls}">${w._st.txt}</span> &nbsp;drink by ${w.by}</div>
+      </div>`).join("")
+    : `<div class="wempty">Nothing is due before ${YEAR + 2}. Nice.</div>`;
+
+  /* ---- Ratings: top rated + recently opened ---- */
+  const HOWTO = `<div class="wempty">No wines rated yet. When you open a bottle, tell Claude
+      something like <code>we opened the 2009 Patriarch &mdash; Reed 8.5, Candice 9</code>
+      (1&ndash;10, same scale as your cocktails). It logs it, takes a bottle off the count
+      and rebuilds this page.</div>`;
+  const rated = W.filter(w => w.avg != null).sort((a,b) => b.avg - a.avg);
+  $("#wine-top").innerHTML = rated.length ? `<ul class="lead">` + rated.slice(0,8).map((w,k) => `
+      <li><span class="rank ${["g","s","b"][k]||""}">${k+1}</span>
+          <span class="nm">${link(w, w._i)}<br><span style="color:var(--muted);font-size:12px">${esc(w.producer)}</span></span>
+          <span class="val" style="color:${rateColor(w.avg)}">${fmt(w.avg)}</span></li>`).join("") + `</ul>`
+    : HOWTO;
+  // History rows point back at their cellar wine through the shared key.
+  const byKey = {}; W.forEach(w => byKey[w.key] = w);
+  $("#wine-recent").innerHTML = WH.length ? `<ul class="lead">` + WH.slice(0,8).map(h => {
+      const w = byKey[h.key];
+      const nm = w ? link(w, w._i) : esc(`${h.wine} ${h.vintage||"NV"}`);
+      const r = [h.reed!=null?`Reed ${fmt(h.reed)}`:null, h.candice!=null?`Candice ${fmt(h.candice)}`:null]
+                .filter(Boolean).join(" · ");
+      return `<li><span class="nm">${nm}<br><span style="color:var(--muted);font-size:12px">${esc(h.date||"")}${r?" · "+r:""}</span></span></li>`;
+    }).join("") + `</ul>`
+    : `<div class="wempty">Bottles you open will show up here, newest first.</div>`;
+
+  /* ---- Bars: bottles by location and by producer ---- */
+  function bars(sel, field, top){
+    const c = {}; inCellar.forEach(w => { const k = w[field] || "Unknown"; c[k] = (c[k]||0) + w.qty; });
+    const rows = Object.entries(c).sort((a,b) => b[1]-a[1]).slice(0, top);
+    const max = Math.max(1, ...rows.map(r => r[1]));
+    $(sel).innerHTML = rows.map(([k,v]) => `
+      <div class="bar-row"><span class="name" style="width:150px" title="${esc(k)}">${esc(k.replace(/ \(.*\)/,""))}</span>
+        <span class="track"><span class="fill" style="width:${Math.max(12, v/max*100)}%">${v}</span></span></div>`).join("");
+  }
+  bars("#wine-loc", "location", 6);
+  bars("#wine-prod", "producer", 6);
+
+  /* ---- Full list ---- */
+  typeOptions("#wine-loc-f",     W.map(w => w.location), "All locations");
+  typeOptions("#wine-prod-f",    W.map(w => w.producer), "All producers");
+  typeOptions("#wine-country-f", W.map(w => w.country),  "All countries");
+  const st = {countSel:"#wine-count", sortKey:"by"};
+  st.filter = w => {
+    const q = $("#wine-q").value.trim().toLowerCase();
+    const hay = [w.producer, w.wine, w.grape, w.region, w.country, w.vintage, w.notes]
+                .map(v => v == null ? "" : String(v)).join(" ").toLowerCase();
+    return (!q || hay.includes(q))
+      && (!$("#wine-loc-f").value     || w.location === $("#wine-loc-f").value)
+      && (!$("#wine-prod-f").value    || w.producer === $("#wine-prod-f").value)
+      && (!$("#wine-country-f").value || w.country  === $("#wine-country-f").value)
+      && ($("#wine-gone").checked || w.qty > 0);
+  };
+  const cols = [
+    {key:"_name",    label:"Wine",     fmt:(v,w) => link(w, w._i)},
+    {key:"producer", label:"Producer"},
+    {key:"grape",    label:"Grape"},
+    {key:"region",   label:"Region"},
+    {key:"qty",      label:"Qty",      cls:"num"},
+    {key:"by",       label:"Drink by", cls:"num"},
+    {key:"_status",  label:"Status",   fmt:(v,w) => `<span class="wbadge ${w._st.cls}">${w._st.txt}</span>`},
+    {key:"avg",      label:"Rating",   cls:"num",
+       fmt:(v,w) => v==null ? "" : `<b style="color:${rateColor(v)}">${fmt(v)}</b> <span style="color:var(--muted)">(${w.opened})</span>`},
+    {key:"location", label:"Location", fmt:v => `<span class="pill">${esc((v||"").replace(/ \(.*\)/,""))}</span>`},
+  ];
+  // Sort helper column: past-window first, then this year, next year, holding, finished.
+  const ORDER = {past:0, now:1, next:2, hold:3, gone:4};
+  W.forEach(w => w._status = ORDER[w._st.cls]);
+  makeTable("#wine-table", cols, W, st);
+  ["#wine-q","#wine-loc-f","#wine-prod-f","#wine-country-f","#wine-gone"]
+    .forEach(s => { $(s).oninput = st.apply; $(s).onchange = st.apply; });
+
+  /* ---- Detail card (reuses the drink pop-up) ---- */
+  // The catalog notes also record which photo files each bottle came from.
+  // That is useful in Excel but just noise here, so strip those phrases.
+  const cleanNotes = n => (n || "").split(/[.;]\s+/)
+    .filter(part => part.trim() && !/IMG_\d/.test(part))
+    .join(". ").replace(/\.*$/, "");
+  function openWine(i){
+    const w = W[i]; if(!w) return;
+    const hs = WH.filter(h => h.key === w.key);
+    // Same tile style as the drink card. Words get a smaller font than numbers.
+    const stat = (k,v,small) => v==null||v==="" ? "" :
+      `<div class="mstat"><div class="v"${small?' style="font-size:13.5px;font-weight:700;color:var(--text)"':""}>${v}</div><div class="k">${k}</div></div>`;
+    const tastings = hs.length ? `<div class="msec"><h4>Tasting history</h4>` + hs.map(h => {
+        const parts = [h.reed!=null?`Reed ${fmt(h.reed)}`:null, h.candice!=null?`Candice ${fmt(h.candice)}`:null].filter(Boolean).join(" · ");
+        return `<div class="mnote"><div class="d">${esc(h.date||"")}${parts?" · "+esc(parts):""}</div>${h.notes?`<div class="c">${esc(h.notes)}</div>`:""}</div>`;
+      }).join("") + `</div>`
+      : `<div class="msec"><h4>Tasting history</h4><div class="wempty">Not opened yet.</div></div>`;
+    $("#drink-card").innerHTML = `
+      <div class="mhead">
+        <button class="mclose" aria-label="Close">&times;</button>
+        <h3>${esc(w._name)}</h3>
+        <div class="sub">${esc(w.producer)}${w.region?" · "+esc(w.region):""}${w.country?", "+esc(w.country):""}</div>
+      </div>
+      <div class="mbody">
+        <div class="mstats">
+          ${stat("Status", `<span class="wbadge ${w._st.cls}">${w._st.txt}</span>`, 1)}
+          ${stat("In cellar", w.qty + " bottle" + (w.qty===1?"":"s"))}
+          ${stat("Drink window", w.from||w.by ? `${w.from||"?"}–${w.by||"?"}` : null)}
+          ${stat("Rating", w.avg!=null ? `<b style="color:${rateColor(w.avg)}">${fmt(w.avg)}</b>` : null)}
+          ${stat("Reed avg", w.reedAvg!=null ? fmt(w.reedAvg) : null)}
+          ${stat("Candice avg", w.candiceAvg!=null ? fmt(w.candiceAvg) : null)}
+          ${stat("Grape", esc(w.grape), 1)}
+          ${stat("ABV", w.abv!=null ? fmt(w.abv,1)+"%" : null)}
+          ${stat("Bottle", w.size ? fmt(w.size,0)+" ml" : null)}
+          ${stat("Location", esc(w.location), 1)}
+          ${stat("Paid", w.price!=null ? money(w.price) : null)}
+          ${stat("Est. value", w.value!=null ? money(w.value) : null)}
+        </div>
+        ${cleanNotes(w.notes) ? `<div class="msec"><h4>Notes</h4><div class="mprep">${esc(cleanNotes(w.notes))}</div></div>` : ""}
+        ${tastings}
+      </div>`;
+    $("#drink-modal").hidden = false;
+  }
+  // One page-wide listener: any .winelink anywhere opens its wine.
+  document.addEventListener("click", e => {
+    const a = e.target.closest(".winelink"); if(!a) return;
+    e.preventDefault(); openWine(+a.dataset.w);
+  });
+  } catch(err) {
+    const box = document.querySelector('.tab[data-tab="wine"] .intro');
+    if (box) box.innerHTML = '<span style="color:#f87171">The wine tab could not be built: ' + esc(String(err)) + '</span>';
+    console.error(err);
+  }
+})();
 
 /* ---------- chart option helpers (dark theme) ----------------------------- */
 function rateColor(v){ return v>=9?"#4ade80": v>=7?"#5eead4": v>=5?"#fbbf24":"#f87171"; }
