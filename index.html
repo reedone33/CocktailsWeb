@@ -225,6 +225,17 @@
   .wempty{color:var(--muted);font-size:13px;line-height:1.5}
   .wempty code{background:var(--panel2);padding:1px 6px;border-radius:6px;font-size:12px}
   .wgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  /* Collapsible wine sections: click the heading to fold/unfold */
+  .wcol{cursor:pointer;user-select:none}
+  .wcol::after{content:"\25BE";margin-left:auto;color:var(--muted);font-size:14px;transition:transform .15s}
+  .info-sec.collapsed .wcol{margin:0}
+  .info-sec.collapsed .wcol::after{transform:rotate(-90deg)}
+  .info-sec.collapsed > :not(h3){display:none}
+  .wcol .wn{color:var(--muted);font-weight:400;font-size:12.5px}
+  .wtyp{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+        color:var(--muted);background:var(--panel2);border:1px solid var(--line);border-radius:6px;
+        padding:0 5px;margin-right:6px;vertical-align:1px}
+  .wsrc a{font-size:11.5px;word-break:break-all}
   @media(max-width:820px){.wgrid{grid-template-columns:1fr}}
 
   /* Drink detail modal (Drink History tab) */
@@ -596,21 +607,21 @@
     <div class="intro">Your wine cellar, from the <b>Wine Cellar</b> sheet. Drink-by years are estimates
       unless the back label gave one. Tap a wine for its details and tasting history.</div>
     <div class="info-sec">
-      <h3>&#9200; Drink soon</h3>
+      <h3 class="wcol" data-sec="soon">&#9200; Drink soon <span class="wn" id="wine-soon-n"></span></h3>
       <div class="wsoon" id="wine-soon"></div>
     </div>
     <div class="wgrid">
       <div class="info-sec" style="margin-top:0">
-        <h3>&#11088; Top rated</h3>
+        <h3 class="wcol" data-sec="top">&#11088; Top rated</h3>
         <div id="wine-top"></div>
       </div>
       <div class="info-sec" style="margin-top:0">
-        <h3>&#127863; Recently opened</h3>
+        <h3 class="wcol" data-sec="recent">&#127863; Recently opened</h3>
         <div id="wine-recent"></div>
       </div>
     </div>
     <div class="info-sec">
-      <h3>&#128230; Where it lives &amp; who made it</h3>
+      <h3 class="wcol" data-sec="where">&#128230; Where it lives &amp; who made it</h3>
       <div class="wgrid">
         <div class="bars" id="wine-loc"></div>
         <div class="bars" id="wine-prod"></div>
@@ -2224,7 +2235,7 @@ renderKpis(globalCards);
     if(w.by === YEAR + 1)            return {cls:"next", txt:"Drink next year"};
     return {cls:"hold", txt:"Hold to " + w.by};
   }
-  const link = (w, i) => `<span class="winelink" data-w="${i}">${esc(wname(w))}</span>`;
+  const link = (w, i, text) => `<span class="winelink" data-w="${i}">${esc(text || wname(w))}</span>`;
   W.forEach((w,i) => { w._i = i; w._st = status(w); w._name = wname(w); });
 
   /* ---- KPI cards when the tab is opened ---- */
@@ -2244,6 +2255,24 @@ renderKpis(globalCards);
         <div class="m"><span class="wbadge ${w._st.cls}">${w._st.txt}</span> &nbsp;drink by ${w.by}</div>
       </div>`).join("")
     : `<div class="wempty">Nothing is due before ${YEAR + 2}. Nice.</div>`;
+
+  $("#wine-soon-n").textContent = soon.length ? `· ${soonBottles} bottle${soonBottles===1?"":"s"}` : "";
+
+  /* ---- Collapsible sections: click a heading to fold it. The choice is
+     remembered on this device (if the browser allows storage). ---- */
+  const KEY = "wine.collapsed";
+  let folded = {};
+  try { folded = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch(e) {}
+  document.querySelectorAll('.tab[data-tab="wine"] .wcol').forEach(h => {
+    const box = h.closest(".info-sec");
+    if (folded[h.dataset.sec]) box.classList.add("collapsed");
+    h.addEventListener("click", e => {
+      if (e.target.closest(".winelink")) return;          // a wine name still opens its card
+      box.classList.toggle("collapsed");
+      folded[h.dataset.sec] = box.classList.contains("collapsed");
+      try { localStorage.setItem(KEY, JSON.stringify(folded)); } catch(e) {}
+    });
+  });
 
   /* ---- Ratings: top rated + recently opened ---- */
   const HOWTO = `<div class="wempty">No wines rated yet. When you open a bottle, tell Claude
@@ -2295,7 +2324,8 @@ renderKpis(globalCards);
       && ($("#wine-gone").checked || w.qty > 0);
   };
   const cols = [
-    {key:"_name",    label:"Wine",     fmt:(v,w) => link(w, w._i)},
+    {key:"wine",     label:"Wine",     fmt:(v,w) => link(w, w._i, w.wine)},
+    {key:"_vint",    label:"Vintage",  cls:"num", fmt:(v,w) => w.vintage || "NV"},
     {key:"producer", label:"Producer"},
     {key:"grape",    label:"Grape"},
     {key:"region",   label:"Region"},
@@ -2309,9 +2339,13 @@ renderKpis(globalCards);
   // Sort helper column: past-window first, then this year, next year, holding, finished.
   const ORDER = {past:0, now:1, next:2, hold:3, gone:4};
   W.forEach(w => w._status = ORDER[w._st.cls]);
+  W.forEach(w => w._vint = w.vintage || 0);      // NV sorts as the oldest
   makeTable("#wine-table", cols, W, st);
-  ["#wine-q","#wine-loc-f","#wine-prod-f","#wine-country-f","#wine-gone"]
-    .forEach(s => { $(s).oninput = st.apply; $(s).onchange = st.apply; });
+  // The search box filters as you type. It must NOT also redraw on "change":
+  // that fires when the box loses focus - i.e. at the very moment you tap a
+  // wine - and redrawing then swallows the tap.
+  $("#wine-q").oninput = st.apply;
+  ["#wine-loc-f","#wine-prod-f","#wine-country-f","#wine-gone"].forEach(s => $(s).onchange = st.apply);
 
   /* ---- Detail card (reuses the drink pop-up) ---- */
   // The catalog notes also record which photo files each bottle came from.
@@ -2325,6 +2359,18 @@ renderKpis(globalCards);
     // Same tile style as the drink card. Words get a smaller font than numbers.
     const stat = (k,v,small) => v==null||v==="" ? "" :
       `<div class="mstat"><div class="v"${small?' style="font-size:13.5px;font-weight:700;color:var(--text)"':""}>${v}</div><div class="k">${k}</div></div>`;
+    // One researched block. "Typical:" means the text describes the wine in
+    // general rather than this exact vintage - shown as a small tag.
+    const sec = (title, text) => {
+      if (!text) return "";
+      let t = String(text), tag = "";
+      if (/^typical:\s*/i.test(t)) { t = t.replace(/^typical:\s*/i, ""); tag = `<span class="wtyp">Typical</span>`; }
+      return `<div class="msec"><h4>${title}</h4><div class="mprep">${tag}${esc(t)}</div></div>`;
+    };
+    const srcs = w.sources ? `<div class="msec wsrc"><h4>Sources</h4>` +
+      String(w.sources).split(/\s*;\s*/).filter(u => /^https?:/.test(u))
+        .map(u => `<div><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\/(www\.)?/,"").slice(0,70))}</a></div>`).join("") +
+      `</div>` : "";
     const tastings = hs.length ? `<div class="msec"><h4>Tasting history</h4>` + hs.map(h => {
         const parts = [h.reed!=null?`Reed ${fmt(h.reed)}`:null, h.candice!=null?`Candice ${fmt(h.candice)}`:null].filter(Boolean).join(" · ");
         return `<div class="mnote"><div class="d">${esc(h.date||"")}${parts?" · "+esc(parts):""}</div>${h.notes?`<div class="c">${esc(h.notes)}</div>`:""}</div>`;
@@ -2344,15 +2390,22 @@ renderKpis(globalCards);
           ${stat("Rating", w.avg!=null ? `<b style="color:${rateColor(w.avg)}">${fmt(w.avg)}</b>` : null)}
           ${stat("Reed avg", w.reedAvg!=null ? fmt(w.reedAvg) : null)}
           ${stat("Candice avg", w.candiceAvg!=null ? fmt(w.candiceAvg) : null)}
-          ${stat("Grape", esc(w.grape), 1)}
+          ${w.blend ? "" : stat("Grape", esc(w.grape), 1)}
           ${stat("ABV", w.abv!=null ? fmt(w.abv,1)+"%" : null)}
           ${stat("Bottle", w.size ? fmt(w.size,0)+" ml" : null)}
           ${stat("Location", esc(w.location), 1)}
           ${stat("Paid", w.price!=null ? money(w.price) : null)}
-          ${stat("Est. value", w.value!=null ? money(w.value) : null)}
+          ${stat("Est. value", w.value!=null ? money(w.value) + (w.valueBasis ? `<div style="font-size:10px;color:var(--muted);font-weight:400;margin-top:3px;line-height:1.25">${esc(w.valueBasis)}</div>` : "") : null)}
         </div>
-        ${cleanNotes(w.notes) ? `<div class="msec"><h4>Notes</h4><div class="mprep">${esc(cleanNotes(w.notes))}</div></div>` : ""}
+        ${sec("Tasting notes", w.tasting)}
+        ${sec("Food pairing", w.pairing)}
+        ${sec("Critic scores", w.scores)}
+        ${sec("Serving", [w.serveTemp && "Serve at " + w.serveTemp, w.decant].filter(Boolean).join(" · "))}
+        ${sec("Blend", w.blend)}
+        ${sec("Winemaking", w.winemaking)}
+        ${cleanNotes(w.notes) ? `<div class="msec"><h4>Your notes</h4><div class="mprep">${esc(cleanNotes(w.notes))}</div></div>` : ""}
         ${tastings}
+        ${srcs}
       </div>`;
     $("#drink-modal").hidden = false;
   }
