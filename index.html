@@ -244,6 +244,10 @@
   .hz-src{color:var(--muted);font-size:12px;max-width:1100px;margin-top:18px;line-height:1.6}
   @media (max-width:640px){ .hz-row{grid-template-columns:96px minmax(0,1fr) 38px} }
 
+  .fsq-sub{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:2px;white-space:nowrap}
+  #fsq-table td{vertical-align:top}
+  #fsq-table td:nth-child(2){white-space:normal;min-width:170px;max-width:290px}
+  #fsq-table td:nth-child(2) .fsq-sub{white-space:normal}
   /* ---- Wine tab --------------------------------------------------------- */
   .wsoon{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
   .wsoon .w{background:var(--panel2);border-radius:12px;padding:12px 14px;border-left:4px solid #fbbf24}
@@ -628,6 +632,7 @@
       <div class="chips" id="fsq-scope"></div>
       <span class="count" id="fsq-count"></span>
     </div>
+    <div class="count" id="fsq-more" hidden style="margin:-4px 0 6px">Swipe sideways for more columns &rarr;</div>
     <div class="tablewrap"><table id="fsq-table"></table></div>
   </section>
 
@@ -2162,8 +2167,16 @@ document.addEventListener("click", e=>{
 
   const st = {countSel:"#fsq-count", sortKey:"markNo", desc:false};
   // rows arrive in render order, so tint the ones on the shelf
-  st.afterApply = list => document.querySelectorAll("#fsq-table tbody tr")
-    .forEach((tr,i)=>tr.classList.toggle("hz-owned", !!(list[i] && list[i].owned)));
+  st.afterApply = list => {
+    document.querySelectorAll("#fsq-table tbody tr")
+      .forEach((tr,i)=>tr.classList.toggle("hz-owned", !!(list[i] && list[i].owned)));
+    fsqHint();
+  };
+  // show the swipe hint only when some columns are out of view
+  function fsqHint(){ requestAnimationFrame(()=>{ const w=$("#fsq-table").parentElement;
+    $("#fsq-more").hidden = !(w.clientWidth && w.scrollWidth > w.clientWidth + 4); }); }
+  window.addEventListener("resize", fsqHint);
+  $("#nav").addEventListener("click", e=>{ if(e.target.closest('button[data-t="fsq"]')) fsqHint(); });
   const yr  = v => v==null ? "" : String(v);
   const pctAbv = v => v==null ? "" : Math.round(v<=1.5 ? v*100 : v)+"%";
   st.filter = r => {
@@ -2175,27 +2188,27 @@ document.addEventListener("click", e=>{
     // Sorts on the numeric value, displays the Roman numeral
     {key:"markNo",label:"Mark",fmt:(v,r)=>r.mark?`<span class="pill">${esc(r.mark)}</span>`:""},
     // show the short label, but open the card for the full bottle name
+    // Name, badges and finish share one cell; years sit under Age; counts sit
+    // beside their scores - keeps all the facts while fitting the screen.
     {key:"short",label:"Release",
      fmt:(v,r)=> (r.owned
         ? `<span class="drinklink" data-n="${esc(r.ingredient)}" title="${esc(r.ingredient)}">${esc(v)}</span>`
         : `<span style="color:var(--muted)">${esc(v)}</span>`)
-       + (r.copies>1 ? ` <span class="pill" title="${r.copies} bottles of this release">&times;${r.copies}</span>` : "")},
-    {key:"owned",label:"Owned",fmt:(v,r)=>!v ? "" : r.amt===0 ? '<span class="hz-badge gone">Finished</span>' : '<span class="hz-badge own">Owned</span>'},
-    {key:"barrel",label:"Barrel",cls:"num",fmt:yr},
-    {key:"release",label:"Released",cls:"num",fmt:yr},
-    {key:"age",label:"Age",cls:"num",fmt:v=>v==null?"":v+" yr"},
-    {key:"finish",label:"Finish",cls:"comment"},
+       + (r.copies>1 ? ` <span class="pill" title="${r.copies} bottles of this release">&times;${r.copies}</span>` : "")
+       + (r.owned ? (r.amt===0 ? ' <span class="hz-badge gone">Finished</span>' : ' <span class="hz-badge own">Owned</span>') : "")
+       + (r.finish ? `<span class="fsq-sub">${esc(r.finish)}</span>` : "")},
+    {key:"age",label:"Age",cls:"num",fmt:(v,r)=>(v==null?"":v+" yr")
+       + (r.barrel||r.release ? `<span class="fsq-sub">${yr(r.barrel)}&rarr;${yr(r.release)}</span>` : "")},
     {key:"abv",label:"ABV",cls:"num",fmt:pctAbv},
     {key:"bottles",label:"Bottles",cls:"num",fmt:v=>v==null?"":Number(v).toLocaleString("en-US")},
-    {key:"rumx",label:"RumX",cls:"num",fmt:v=>v==null?"":fmt(v,1)},
-    {key:"rumxN",label:"RumX #",cls:"num",fmt:v=>v==null?"":v},
+    {key:"rumx",label:"RumX",cls:"num",fmt:(v,r)=>v==null?"":fmt(v,1)
+       + (r.rumxN!=null ? `<span class="fsq-sub">${r.rumxN} ratings</span>` : "")},
     {key:"critAll",label:"Critics",cls:"num",fmt:(v,r)=>v==null?"":`<span title="${esc(r.critTip)}" style="border-bottom:1px dotted var(--muted);cursor:help">${Math.round(v)}</span>`},
     {key:"blend",label:"Blended",cls:"num",fmt:v=>v==null?"":`<span class="rate" style="color:var(--accent2)">${v.toFixed(1)}</span>`},
-    {key:"avgRating",label:"My avg",cls:"num",fmt:v=>v==null?"":`<span class="rate" style="color:${rateColor(v)}">${fmt(v)}</span>`},
-    {key:"nRatings",label:"My #",cls:"num",fmt:v=>v==null?"":v},
-    {key:"highRating",label:"My high",cls:"num",fmt:v=>v==null?"":fmt(v)},
+    {key:"avgRating",label:"Mine",cls:"num",fmt:(v,r)=>v==null?"":`<span class="rate" style="color:${rateColor(v)}">${fmt(v)}</span>`
+       + `<span class="fsq-sub">${r.nRatings}&times;${r.nRatings>1&&r.highRating!=null?` · high ${fmt(r.highRating)}`:""}</span>`},
     {key:"lastRated",label:"Last rated",fmt:v=>v==null?"":esc(v)},
-    {key:"amt",label:"Amt left",cls:"num",fmt:v=>v==null?"":fmt(v,2)},
+    {key:"amt",label:"Left",cls:"num",fmt:v=>v==null?"":fmt(v,2)},
     {key:"cost",label:"Cost",cls:"num",fmt:money},
   ];
 
