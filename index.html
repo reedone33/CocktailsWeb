@@ -2113,19 +2113,62 @@ document.addEventListener("click", e=>{
         short: short || r.ingredient};
     });
 
+  // Attach release facts from the "Foursqare ECS Releases" sheet, then add every
+  // release that isn't on the shelf. ECS bottles match on the Mark; the Master
+  // Series bottles (Mark "NA" in the sheet) match on their edition number.
+  const ECS = DATA.ecsReleases || [];
+  const msKey = s => { const m=/master series edition\s*no?\.?\s*(\d+)/i.exec(s||""); return m ? "MS"+m[1] : null; };
+  const relKey = e => (e.mark && e.mark!=="NA") ? "M"+e.mark : msKey(e.name);
+  const relBy = new Map(ECS.map(e=>[relKey(e), e]));
+  const relFields = e => ({barrel:e.barrel, release:e.release, age:e.age, finish:e.finish,
+                           abv:e.abv, bottles:e.bottles, rumx:e.rumx, rumxN:e.rumxN, ...scores(e)});
+  // Every outside score on a 100-point scale. "Critics" = average of the critic
+  // sources; "Blended" = plain average of RumX community + every critic source.
+  function scores(e){
+    const c = [];
+    if(e.crit!=null) c.push(["RumX critics ("+(e.critN||"?")+")", e.crit*10]);
+    if(e.dh!=null) c.push(["Drinkhacker", e.dh]);
+    if(e.vp!=null) c.push(["VinePair", e.vp]);
+    if(e.lc!=null) c.push(["Lone Caner", e.lc]);
+    const avg = a => a.length ? Math.round(a.reduce((s,x)=>s+x,0)/a.length*10)/10 : null;
+    const all = (e.rumx!=null ? [e.rumx*10] : []).concat(c.map(x=>x[1]));
+    return {critAll:avg(c.map(x=>x[1])), critTip:c.map(x=>x[0]+": "+Math.round(x[1])).join(" · "), blend:avg(all)};
+  }
+  const usedRel = new Set();
+  rows.forEach(r=>{
+    r.owned = true;
+    const k = r.isEcs ? "M"+r.mark : msKey(r.ingredient);
+    const e = k && relBy.get(k);
+    if(e){ Object.assign(r, relFields(e)); usedRel.add(k); }
+  });
+  ECS.forEach(e=>{
+    const k = relKey(e);
+    if(!k || usedRel.has(k)) return;
+    const isEcs = e.mark && e.mark!=="NA";
+    rows.push({...relFields(e), owned:false, copies:0, ingredient:"Foursquare "+e.name,
+      short:e.name, mark:isEcs?e.mark:"", markNo:isEcs?fromRoman(e.mark):9999, isEcs,
+      amt:null, cost:null, nRatings:null, avgRating:null, highRating:null, lastRated:null});
+  });
+
   let scope = "all";
   $("#fsq-scope").innerHTML =
-    [["All","all"],["ECS marks","ecs"],["Rated","rated"],["In stock","stock"]]
+    [["All","all"],["Owned","own"],["Not owned","not"],["Rated by me","rated"],["In stock","stock"]]
       .map(([l,v])=>`<button class="chip${v===scope?" active":""}" data-s="${v}">${l}</button>`).join("");
 
-  const inScope = r => scope==="ecs" ? r.isEcs
+  const inScope = r => scope==="own" ? r.owned
+                     : scope==="not" ? !r.owned
                      : scope==="rated" ? !!r.nRatings
-                     : scope==="stock" ? r.amt!==0 : true;
+                     : scope==="stock" ? (r.owned && r.amt!==0) : true;
 
   const st = {countSel:"#fsq-count", sortKey:"markNo", desc:false};
+  // rows arrive in render order, so tint the ones on the shelf
+  st.afterApply = list => document.querySelectorAll("#fsq-table tbody tr")
+    .forEach((tr,i)=>tr.classList.toggle("hz-owned", !!(list[i] && list[i].owned)));
+  const yr  = v => v==null ? "" : String(v);
+  const pctAbv = v => v==null ? "" : Math.round(v<=1.5 ? v*100 : v)+"%";
   st.filter = r => {
     const q = $("#fsq-q").value.toLowerCase();
-    return inScope(r) && (!q || (r.ingredient+" "+r.mark).toLowerCase().includes(q));
+    return inScope(r) && (!q || (r.ingredient+" "+r.mark+" "+(r.finish||"")).toLowerCase().includes(q));
   };
 
   const cols = [
@@ -2133,11 +2176,24 @@ document.addEventListener("click", e=>{
     {key:"markNo",label:"Mark",fmt:(v,r)=>r.mark?`<span class="pill">${esc(r.mark)}</span>`:""},
     // show the short label, but open the card for the full bottle name
     {key:"short",label:"Release",
-     fmt:(v,r)=>`<span class="drinklink" data-n="${esc(r.ingredient)}" title="${esc(r.ingredient)}">${esc(v)}</span>`
+     fmt:(v,r)=> (r.owned
+        ? `<span class="drinklink" data-n="${esc(r.ingredient)}" title="${esc(r.ingredient)}">${esc(v)}</span>`
+        : `<span style="color:var(--muted)">${esc(v)}</span>`)
        + (r.copies>1 ? ` <span class="pill" title="${r.copies} bottles of this release">&times;${r.copies}</span>` : "")},
-    {key:"nRatings",label:"# Ratings",cls:"num",fmt:v=>v==null?"":v},
-    {key:"avgRating",label:"Avg",cls:"num",fmt:v=>v==null?"":`<span class="rate" style="color:${rateColor(v)}">${fmt(v)}</span>`},
-    {key:"highRating",label:"High",cls:"num",fmt:v=>v==null?"":fmt(v)},
+    {key:"owned",label:"Owned",fmt:(v,r)=>!v ? "" : r.amt===0 ? '<span class="hz-badge gone">Finished</span>' : '<span class="hz-badge own">Owned</span>'},
+    {key:"barrel",label:"Barrel",cls:"num",fmt:yr},
+    {key:"release",label:"Released",cls:"num",fmt:yr},
+    {key:"age",label:"Age",cls:"num",fmt:v=>v==null?"":v+" yr"},
+    {key:"finish",label:"Finish",cls:"comment"},
+    {key:"abv",label:"ABV",cls:"num",fmt:pctAbv},
+    {key:"bottles",label:"Bottles",cls:"num",fmt:v=>v==null?"":Number(v).toLocaleString("en-US")},
+    {key:"rumx",label:"RumX",cls:"num",fmt:v=>v==null?"":fmt(v,1)},
+    {key:"rumxN",label:"RumX #",cls:"num",fmt:v=>v==null?"":v},
+    {key:"critAll",label:"Critics",cls:"num",fmt:(v,r)=>v==null?"":`<span title="${esc(r.critTip)}" style="border-bottom:1px dotted var(--muted);cursor:help">${Math.round(v)}</span>`},
+    {key:"blend",label:"Blended",cls:"num",fmt:v=>v==null?"":`<span class="rate" style="color:var(--accent2)">${v.toFixed(1)}</span>`},
+    {key:"avgRating",label:"My avg",cls:"num",fmt:v=>v==null?"":`<span class="rate" style="color:${rateColor(v)}">${fmt(v)}</span>`},
+    {key:"nRatings",label:"My #",cls:"num",fmt:v=>v==null?"":v},
+    {key:"highRating",label:"My high",cls:"num",fmt:v=>v==null?"":fmt(v)},
     {key:"lastRated",label:"Last rated",fmt:v=>v==null?"":esc(v)},
     {key:"amt",label:"Amt left",cls:"num",fmt:v=>v==null?"":fmt(v,2)},
     {key:"cost",label:"Cost",cls:"num",fmt:money},
@@ -2148,20 +2204,27 @@ document.addEventListener("click", e=>{
   const avg = rated.length ? rated.reduce((s,r)=>s+r.avgRating,0)/rated.length : null;
   const best = rated.length ? rated.reduce((a,b)=>b.avgRating>a.avgRating?b:a) : null;
   const pours = rows.reduce((s,r)=>s+(r.nRatings||0),0);
-  const marks = rows.filter(r=>r.isEcs).length;
+  const marks = rows.filter(r=>r.isEcs && r.owned).length;
+  const allMarks = rows.filter(r=>r.isEcs).length;
+  const missing = rows.filter(r=>!r.owned && r.rumx!=null).sort((a,b)=>b.rumx-a.rumx || (b.rumxN||0)-(a.rumxN||0));
   $("#fsq-head").innerHTML = `
     <h2 class="big">&#127463;&#127463; Foursquare</h2>
     <div class="intro">Every Foursquare release in the collection with its full rating record,
-      shown by ECS Mark. Duplicate bottles of the same release are combined into one line
-      (marked &times;2), with the amount remaining and cost added together.</div>
+      shown by ECS Mark, plus every ECS release you don&rsquo;t own (greyed, from your
+      <b>Foursqare ECS Releases</b> sheet). Duplicate bottles of the same release are combined into one line
+      (marked &times;2). RumX scores are your sheet&rsquo;s latest snapshot${DATA.ecsAsOf?` (${esc(DATA.ecsAsOf)})`:""}.
+      <b>Critics</b> averages RumX&rsquo;s critic panel, Drinkhacker, VinePair and The Lone Caner on a 100-point scale (hover for the breakdown);
+      <b>Blended</b> averages those with the RumX community score.</div>
     <div class="hero">
       <div class="tile t-sky"><span class="emoji">&#127862;</span><div class="big">${rows.reduce((s,r)=>s+r.copies,0)}</div><div class="lbl">Bottles</div></div>
-      <div class="tile t-teal"><span class="emoji">&#127991;</span><div class="big">${marks}</div><div class="lbl">ECS marks</div></div>
+      <div class="tile t-teal"><span class="emoji">&#127991;</span><div class="big">${marks}<span style="font-size:18px;opacity:.75"> / ${allMarks}</span></div><div class="lbl">ECS marks owned</div></div>
       <div class="tile t-gold"><span class="emoji">&#11088;</span><div class="big">${avg!=null?avg.toFixed(2):"—"}</div><div class="lbl">Average rating</div></div>
       <div class="tile t-pink"><span class="emoji">&#129346;</span><div class="big">${pours}</div><div class="lbl">Times rated</div></div>
     </div>
     ${best?`<div class="note" style="margin-bottom:14px">Top of the shelf:
-      <b>${esc(best.short)}</b>${best.mark?` (Mark ${esc(best.mark)})`:""} &mdash; ★ ${fmt(best.avgRating)}</div>`:""}`;
+      <b>${esc(best.short)}</b>${best.mark?` (Mark ${esc(best.mark)})`:""} &mdash; ★ ${fmt(best.avgRating)}</div>`:""}
+    ${missing.length?`<div class="note" style="margin-bottom:14px;color:var(--text)">Not on your shelf yet &mdash; best RumX scores:
+      ${missing.slice(0,4).map(r=>`<b>${esc(r.short)}</b> (Mark ${esc(r.mark)}, ${fmt(r.rumx,1)})`).join(", ")}.</div>`:""}`;
 
   makeTable("#fsq-table", cols, rows, st);
   $("#fsq-q").oninput = st.apply;
