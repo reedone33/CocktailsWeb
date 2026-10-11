@@ -566,9 +566,10 @@
   </section>
 
   <section class="tab" data-tab="ing">
-    <div class="intro">Your current bottle list with pour economics and the average rating each spirit earned in your history (replaces IngredientsRated). Empty bottles (0 remaining) are excluded; the cards above update live as you filter.</div>
+    <div class="intro">Your bottle list with pour economics and the average rating each spirit earned in your history (replaces IngredientsRated). <b>On hand</b> hides empties; <b>Empty</b> shows bottles at 0 remaining &mdash; handy for a restock list. The cards above update live as you filter.</div>
     <div class="controls">
       <input type="search" id="ing-q" placeholder="Search ingredient or brand&hellip;">
+      <div class="chips" id="ing-scope" title="Which bottles to show"></div>
       <div class="chips" id="ing-chips"></div>
       <select id="ing-type" title="More spirit types"></select>
       <button class="chip" id="ing-selall">Select all</button>
@@ -1358,14 +1359,30 @@ function typeOptions(sel, values, label){
 
 /* ========================= INGREDIENTS ================================== */
 (function(){
-  // Only current inventory: drop bottles with 0 remaining (empties/finished).
-  const rows=DATA.ingredients.filter(r=>r.amt!==0);
+  // Every bottle; the On hand / Empty / All toggle decides which are shown.
+  // "Empty" = Amount Remaining exactly 0 (finished bottles kept for history).
+  const rows=DATA.ingredients;
   const st={countSel:"#ing-count",sortKey:"type"};
-  // Row-selection state for printing (keyed by ingredient name)
+  // Row-selection state for printing. Keyed by Bottle ID, because the same
+  // ingredient name can be on several rows (an empty bottle and its refill).
   const picked = new Set();
+  const keyOf = r => r.bottleId || r.ingredient;
+  const SCOPES=[["On hand","hand"],["Empty","empty"],["All","all"]];
+  let ingScope="hand";
+  const inScope = r => ingScope==="all" ? true : ingScope==="empty" ? r.amt===0 : r.amt!==0;
+  const scopeCount = v => rows.filter(r=> v==="all" ? true : v==="empty" ? r.amt===0 : r.amt!==0).length;
+  $("#ing-scope").innerHTML = SCOPES.map(([l,v])=>
+    `<button class="chip${v===ingScope?' active':''}" data-s="${v}">${l} <span style="opacity:.7">${scopeCount(v)}</span></button>`).join("");
+  $("#ing-scope").addEventListener("click",e=>{
+    const b=e.target.closest(".chip"); if(!b) return;
+    ingScope=b.dataset.s;
+    $("#ing-scope").querySelectorAll(".chip").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    st.apply();
+  });
   const cols=[
     {key:"_sel",label:"&#10003;",cls:"noprint",
-     fmt:(v,r)=>`<input type="checkbox" class="rowsel" data-n="${esc(r.ingredient)}"${picked.has(r.ingredient)?" checked":""}>`},
+     fmt:(v,r)=>`<input type="checkbox" class="rowsel" data-n="${esc(keyOf(r))}"${picked.has(keyOf(r))?" checked":""}>`},
     {key:"ingredient",label:"Ingredient",fmt:v=>dlink(v)},
     {key:"brand",label:"Brand"},
     {key:"type",label:"Type",fmt:v=>`<span class="pill">${esc(v)}</span>`},
@@ -1375,10 +1392,11 @@ function typeOptions(sel, values, label){
     {key:"highRating",label:"High",cls:"num",fmt:v=>v==null?"":fmt(v)},
     {key:"lastRated",label:"Last rated",fmt:v=>v==null?"":esc(v)},
     {key:"proof",label:"Proof",cls:"num"},
-    {key:"amt",label:"Amt left",cls:"num",fmt:v=>v==null?"":fmt(v,2)},
+    {key:"amt",label:"Amt left",cls:"num",fmt:v=>v==null?"":v===0?`<span class="pill" style="color:#f87171;border-color:#f87171">Empty</span>`:fmt(v,2)},
     {key:"cost",label:"Cost",cls:"num",fmt:money},
     {key:"cost30",label:"Cost/oz",cls:"num",fmt:money},
     {key:"origin",label:"Origin"},
+    {key:"purchased",label:"Bought at",fmt:v=>v==null?"":esc(v)},
   ];
   typeOptions("#ing-type", rows.map(r=>r.type),"More types…");
 
@@ -1403,7 +1421,7 @@ function typeOptions(sel, values, label){
     const q=$("#ing-q").value.toLowerCase(), t=$("#ing-type").value;
     const hit=!q || (r.ingredient+" "+r.brand+" "+(r.origin||"")).toLowerCase().includes(q);
     const typeOk = ingQuick ? matchQuick(ingQuick,r.type) : (!t || r.type===t);
-    return hit && typeOk;
+    return hit && typeOk && inScope(r);
   };
 
   // Recompute the top KPI cards from the currently filtered bottle list.
@@ -1434,7 +1452,7 @@ function typeOptions(sel, values, label){
     updatePrintLabel();
   });
   function updatePrintLabel(){
-    const n = visible().filter(r=>picked.has(r.ingredient)).length;
+    const n = visible().filter(r=>picked.has(keyOf(r))).length;
     $("#ing-print").innerHTML = n ? `&#128424; Print ${n} selected` : "&#128424; Print list";
   }
 
@@ -1471,13 +1489,13 @@ function typeOptions(sel, values, label){
   document.addEventListener("click", ()=>{ $("#ing-colspop").hidden = true; });
   buildColList();
   rebuild();                                 // draw with the current column set
-  $("#ing-selall").onclick  = ()=>{ visible().forEach(r=>picked.add(r.ingredient)); st.apply(); updatePrintLabel(); };
+  $("#ing-selall").onclick  = ()=>{ visible().forEach(r=>picked.add(keyOf(r))); st.apply(); updatePrintLabel(); };
   $("#ing-selnone").onclick = ()=>{ picked.clear(); st.apply(); updatePrintLabel(); };
   $("#ing-print").onclick   = ()=>{
-    const chosen = visible().filter(r=>picked.has(r.ingredient));
+    const chosen = visible().filter(r=>picked.has(keyOf(r)));
     const list = chosen.length ? chosen : visible();     // nothing ticked = print what's filtered
     if(!list.length){ alert("Nothing to print — adjust the filter."); return; }
-    const names = new Set(list.map(r=>r.ingredient));
+    const names = new Set(list.map(keyOf));
     // Hide the rows that aren't being printed, print, then restore.
     // Columns need no special handling — hidden ones aren't in the table.
     const trs = [...$("#ing-table").querySelectorAll("tbody tr")];
@@ -1485,9 +1503,10 @@ function typeOptions(sel, values, label){
       const cb = tr.querySelector(".rowsel");
       if(cb && !names.has(cb.dataset.n)) tr.classList.add("noprint");
     });
-    const chip = ingQuick || $("#ing-type").value || "All bottles";
+    const chip = ingQuick || $("#ing-type").value || "All types";
+    const scopeLbl = SCOPES.find(x=>x[1]===ingScope)[0];
     document.querySelector("main").dataset.printTitle =
-      `Ingredients — ${chip}${chosen.length?" (selected)":""} — ${list.length} of ${rows.length}`;
+      `Ingredients — ${scopeLbl} — ${chip}${chosen.length?" (selected)":""} — ${list.length} of ${rows.filter(inScope).length}`;
     const section = document.querySelector('.tab[data-tab="ing"]');
     section.classList.add("print-me");
     document.body.classList.add("printing");
