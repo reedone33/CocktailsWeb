@@ -965,6 +965,7 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
             field("Type",       esc(r.type)) +
             field("Proof",      r.proof != null ? fmt(r.proof, 0) : "") +
             field("Bottle",     r.size  != null ? fmt(r.size, 0) + " ml" : "") +
+            field("Shelf",      r.shelf ? "<b>" + esc(r.shelf) + "</b>" : "") +
             field("Remaining",  amountCell(r.amt)) +
             field("Cost",       r.cost  != null ? money(r.cost) : "") +
             field("Pour (2 oz)",r.p2    != null ? money(r.p2)   : "") +
@@ -1386,6 +1387,8 @@ function typeOptions(sel, values, label){
     {key:"ingredient",label:"Ingredient",fmt:v=>dlink(v)},
     {key:"brand",label:"Brand"},
     {key:"type",label:"Type",fmt:v=>`<span class="pill">${esc(v)}</span>`},
+    // Cabinet shelf (L6–L1 left, C5–C1 centre, R6–R1 right). Blank until recorded.
+    {key:"shelf",label:"Shelf",fmt:v=>v?`<b>${esc(v)}</b>`:""},
     // Rating history, pulled from Drink_History. Blank when never rated.
     {key:"nRatings",label:"# Ratings",cls:"num",fmt:v=>v==null?"":v},
     {key:"avgRating",label:"Avg",cls:"num",fmt:v=>v==null?"":`<span class="rate" style="color:${rateColor(v)}">${fmt(v)}</span>`},
@@ -1419,7 +1422,7 @@ function typeOptions(sel, values, label){
 
   st.filter=r=>{
     const q=$("#ing-q").value.toLowerCase(), t=$("#ing-type").value;
-    const hit=!q || (r.ingredient+" "+r.brand+" "+(r.origin||"")).toLowerCase().includes(q);
+    const hit=!q || (r.ingredient+" "+r.brand+" "+(r.origin||"")+" "+(r.shelf||"")).toLowerCase().includes(q);
     const typeOk = ingQuick ? matchQuick(ingQuick,r.type) : (!t || r.type===t);
     return hit && typeOk && inScope(r);
   };
@@ -1460,7 +1463,7 @@ function typeOptions(sel, values, label){
   // Hidden columns are left out of the table entirely, so the screen and the
   // print stay perfectly aligned.
   const optional = cols.filter(c=>c.key!=="_sel");   // the tick box is always kept
-  const MINIMAL = ["ingredient","brand","type","avgRating"];
+  const MINIMAL = ["ingredient","brand","type","shelf","avgRating"];
   const shown = new Set(optional.map(c=>c.key));     // default: show everything
 
   function activeCols(){
