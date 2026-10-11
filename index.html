@@ -65,7 +65,22 @@
   .count{color:var(--muted);font-size:12px}
 
   /* Tables */
-  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+  /* Each table scrolls inside its own box, so the heading row can stay pinned
+     at the top while you scroll down, and wide tables scroll sideways. */
+  .tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px;
+             max-height:calc(100vh - 150px);overscroll-behavior:contain}
+  @media(max-width:640px){.tablewrap{max-height:72vh}}
+  th{z-index:2;box-shadow:0 1px 0 var(--line)}     /* pinned heading sits above rows */
+  /* Resizable columns: once sized, cells clip long text with "..." */
+  table.rz th, table.rz td{overflow:hidden;text-overflow:ellipsis}
+  th .cgrip{position:absolute;top:0;right:0;bottom:0;width:9px;cursor:col-resize;
+            touch-action:none;z-index:3}
+  th .cgrip::after{content:"";position:absolute;top:22%;bottom:22%;right:3px;width:2px;
+            border-radius:2px;background:var(--line);transition:background .12s}
+  th:hover .cgrip::after{background:#64748b}
+  th .cgrip:hover::after, body.col-resizing th .cgrip::after{background:var(--accent)}
+  body.col-resizing, body.col-resizing *{cursor:col-resize !important;user-select:none !important}
+  @media(pointer:coarse){th .cgrip{width:16px}}
   table{border-collapse:collapse;width:100%;font-size:13px}
   th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
   th{background:var(--panel2);color:var(--muted);font-weight:600;position:sticky;top:0;
@@ -400,7 +415,11 @@
         overflow:visible}
     body.printing .info,body.printing .tab{max-width:100%;width:auto}
     body.printing *{box-sizing:border-box}
-    body.printing .tablewrap{border:none;overflow:visible;border-radius:0}
+    body.printing .tablewrap{border:none;overflow:visible;border-radius:0;max-height:none}
+    body.printing table.rz{table-layout:auto !important;width:100% !important;min-width:0 !important}
+    body.printing table.rz col{width:auto !important}
+    body.printing table.rz th, body.printing table.rz td{overflow:visible;text-overflow:clip}
+    body.printing .cgrip{display:none}
     body.printing table{font-size:9pt;width:100%;table-layout:auto;border-collapse:collapse}
     body.printing thead{display:table-header-group}   /* repeat headings per page */
     body.printing th{background:#eee !important;color:#000;border-bottom:1.5px solid #333;
@@ -1045,7 +1064,7 @@ function makeTable(tableSel, cols, rows, state){
       const sorted = c.key===state.sortKey ? "sorted"+(state.desc?" desc":"") : "";
       // the column's own class goes on the header too, so things like the
       // non-printing tick-box column hide as a whole and stay aligned
-      return `<th class="${sorted} ${c.cls||''}" data-k="${c.key}">${c.label}</th>`;
+      return `<th class="${sorted} ${c.cls||''}" data-k="${c.key}">${c.label}<span class="cgrip" title="Drag to resize · double-click to fit"></span></th>`;
     }).join("")+"</tr></thead>";
     const body = "<tbody>"+list.map(r=>"<tr>"+cols.map(c=>{
       let v = r[c.key];
@@ -1053,7 +1072,9 @@ function makeTable(tableSel, cols, rows, state){
       return `<td class="${c.cls||''}">${v==null?'':v}</td>`;
     }).join("")+"</tr>").join("")+"</tbody>";
     table.innerHTML = head+body;
-    table.querySelectorAll("th").forEach(th=>th.onclick=()=>{
+    colSizer(table, cols, state);                 // widths, grips, "..." tooltips
+    table.querySelectorAll("th").forEach(th=>th.onclick=e=>{
+      if(e.target.closest(".cgrip") || state._justResized) return;  // a resize is not a sort
       const k=th.dataset.k;
       if(state.sortKey===k) state.desc=!state.desc; else {state.sortKey=k;state.desc=false;}
       apply();
@@ -1078,6 +1099,106 @@ function makeTable(tableSel, cols, rows, state){
   state.apply = apply;
   apply();
 }
+
+/* ---------- resizable columns (used by every makeTable table) ------------- */
+/* How it works, in plain terms:
+   - The first time a table is visible, each column is measured at its natural
+     width and capped at 360 px. Those widths are then fixed, so one very long
+     ingredient name can no longer stretch its column across the screen.
+   - Dragging a heading's right edge changes that column's width; the table
+     scrolls sideways if the total gets wider than the screen.
+   - Widths you drag are saved for that table on this device (if the browser
+     allows storage) and come back next time.
+   - Tables sitting on hidden tabs can't be measured (they have no size yet),
+     so they are measured the moment their tab is opened.                    */
+const COL_MAX_START = 360, COL_MIN = 44;
+function colStoreKey(table){ return "colw:" + table.id; }
+function loadColWidths(table){
+  try { return JSON.parse(localStorage.getItem(colStoreKey(table)) || "{}"); } catch(e) { return {}; }
+}
+function saveColWidths(table, w){
+  try { localStorage.setItem(colStoreKey(table), JSON.stringify(w)); } catch(e) {}
+}
+function colSizer(table, cols, state){
+  state.userW = state.userW || loadColWidths(table);   // widths the user dragged
+  state.autoW = state.autoW || {};                      // widths measured by us
+  table._fit = () => fitColumns(table, cols, state);
+  table._fit();
+  // Full text on hover for anything cut off with "..."
+  if(!table._tipBound){
+    table._tipBound = true;
+    table.addEventListener("mouseover", e => {
+      const cell = e.target.closest("td,th"); if(!cell) return;
+      if(cell.scrollWidth > cell.clientWidth + 1 && !cell.title) cell.title = cell.textContent.trim();
+    });
+  }
+  // Drag + double-click on every grip
+  table.querySelectorAll("th .cgrip").forEach(g => {
+    const th = g.parentElement, key = th.dataset.k;
+    g.onpointerdown = e => {
+      if(!table.classList.contains("rz")) return;
+      e.preventDefault(); e.stopPropagation();
+      const startX = e.clientX, startW = th.getBoundingClientRect().width;
+      document.body.classList.add("col-resizing");
+      g.setPointerCapture(e.pointerId);
+      g.onpointermove = ev => {
+        const w = Math.max(COL_MIN, Math.round(startW + ev.clientX - startX));
+        state.userW[key] = w; applyWidths(table, cols, state);
+      };
+      g.onpointerup = g.onpointercancel = () => {
+        g.onpointermove = g.onpointerup = g.onpointercancel = null;
+        document.body.classList.remove("col-resizing");
+        saveColWidths(table, state.userW);
+        state._justResized = true; setTimeout(() => state._justResized = false, 0);
+      };
+    };
+    g.ondblclick = e => {                       // auto-fit this column to its contents
+      e.preventDefault(); e.stopPropagation();
+      const idx = [...th.parentElement.children].indexOf(th);
+      let w = 0;
+      table.querySelectorAll("tr").forEach(tr => {
+        const cell = tr.children[idx]; if(!cell) return;
+        const cs = getComputedStyle(cell);
+        // natural text width = scrollWidth (incl. padding) of the cell
+        w = Math.max(w, cell.scrollWidth + 2, parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + 20);
+      });
+      state.userW[key] = Math.min(Math.max(COL_MIN, Math.ceil(w)), 900);
+      applyWidths(table, cols, state); saveColWidths(table, state.userW);
+    };
+  });
+}
+function fitColumns(table, cols, state){
+  if(table.offsetParent === null){ table.dataset.needfit = "1"; return; }   // hidden tab: later
+  delete table.dataset.needfit;
+  const missing = cols.filter(c => state.userW[c.key] == null && state.autoW[c.key] == null);
+  if(missing.length){
+    // Measure natural widths with the normal (auto) layout first.
+    table.classList.remove("rz"); table.style.width = ""; table.style.tableLayout = "";
+    const cg = table.querySelector("colgroup"); if(cg) cg.remove();
+    // Starting cap: 360 px, but on a narrow phone no more than ~55% of the box.
+    const box = table.closest(".tablewrap") || table.parentElement;
+    const cap = Math.min(COL_MAX_START, Math.max(160, Math.round(box.clientWidth * 0.55)));
+    table.querySelectorAll("thead th").forEach((th, i) => {
+      const c = cols[i]; if(!c || state.userW[c.key] != null || state.autoW[c.key] != null) return;
+      state.autoW[c.key] = Math.min(cap, Math.max(COL_MIN, Math.ceil(th.getBoundingClientRect().width)));
+    });
+  }
+  applyWidths(table, cols, state);
+}
+function applyWidths(table, cols, state){
+  const ws = cols.map(c => state.userW[c.key] ?? state.autoW[c.key] ?? 120);
+  let cg = table.querySelector("colgroup");
+  if(!cg){ cg = document.createElement("colgroup"); table.insertBefore(cg, table.firstChild); }
+  cg.innerHTML = ws.map(w => `<col style="width:${w}px">`).join("");
+  table.classList.add("rz");
+  table.style.tableLayout = "fixed";
+  table.style.width = ws.reduce((a, b) => a + b, 0) + "px";
+  table.style.minWidth = "100%";             // never narrower than its box
+}
+// Opening a tab measures any table that was hidden when it was first drawn.
+$("#nav").addEventListener("click", () => requestAnimationFrame(() => {
+  document.querySelectorAll('.tab.active table[data-needfit="1"]').forEach(t => t._fit && t._fit());
+}));
 function typeOptions(sel, values, label){
   const uniq=[...new Set(values.filter(Boolean))].sort();
   $(sel).innerHTML = `<option value="">${label}</option>`+uniq.map(t=>`<option>${esc(t)}</option>`).join("");
@@ -1169,7 +1290,7 @@ function typeOptions(sel, values, label){
 
     const head = "<thead><tr>" + COLS.map(([k,l])=>{
       const s = k===sortKey ? "sorted"+(desc?" desc":"") : "";
-      return `<th class="${s}" data-k="${k}">${l}</th>`;
+      return `<th class="${s}" data-k="${k}">${l}<span class="cgrip" title="Drag to resize · double-click to fit"></span></th>`;
     }).join("") + "</tr></thead>";
 
     const body = "<tbody>" + g.map(x=>{
@@ -1193,7 +1314,10 @@ function typeOptions(sel, values, label){
 
     const t = $("#inv-table");
     t.innerHTML = head + body;
-    t.querySelectorAll("th").forEach(th => th.onclick = () => {
+    const sz = t._sz || (t._sz = {});              // sizing state kept on the table itself
+    colSizer(t, COLS.map(([k]) => ({key: k})), sz);
+    t.querySelectorAll("th").forEach(th => th.onclick = e => {
+      if (e.target.closest(".cgrip") || sz._justResized) return;   // a resize is not a sort
       const k = th.dataset.k;
       if (sortKey === k) desc = !desc; else { sortKey = k; desc = true; }
       render();
