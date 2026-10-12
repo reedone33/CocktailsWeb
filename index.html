@@ -180,6 +180,12 @@
           overflow:hidden;vertical-align:middle}
   .amtbar i{display:block;height:100%;border-radius:3px}
   .barEmpty{color:var(--muted);padding:30px 0;text-align:center}
+  /* link to the Bar Shelf Check page (a private claude.ai artifact) */
+  .shelfLink{display:inline-flex;align-items:center;gap:8px;margin:0 0 12px;padding:9px 14px;
+             border:1px solid var(--line);border-radius:10px;background:var(--panel);
+             color:var(--text);font-size:13.5px;font-weight:600;text-decoration:none}
+  .shelfLink span{color:var(--muted);font-weight:500;font-size:12.5px}
+  .shelfLink:hover{border-color:var(--accent)}
   /* ---- Infographic tab ---------------------------------------------------- */
   .info{max-width:1100px}
   .info h2.big{font-size:26px;margin:6px 0 2px}
@@ -358,6 +364,34 @@
   .pop-f{display:flex;gap:6px;margin-top:10px;border-top:1px solid var(--line);padding-top:9px}
   .pop-f .chip{padding:4px 10px;font-size:11.5px}
 
+  /* Sort & columns: multi-level sort and column order (every makeTable table) */
+  th .slv{font-size:9px;color:var(--accent);margin-left:2px;vertical-align:super}
+  th.drop-before{box-shadow:inset 3px 0 0 var(--accent)}
+  th.drop-after{box-shadow:inset -3px 0 0 var(--accent)}
+  th.th-drag{opacity:.55}
+  body.col-moving, body.col-moving *{cursor:grabbing !important;user-select:none !important}
+  .tblbtn.active{background:var(--panel2);color:var(--accent);border-color:var(--accent)}
+  .sortsum{max-width:46ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tbltools{margin:4px 0 8px}
+  #tblpanel{position:fixed;inset:0;z-index:90;background:rgba(2,6,23,.6);display:flex;
+            align-items:flex-start;justify-content:center;padding:6vh 16px 16px;overflow:auto}
+  #tblpanel[hidden]{display:none}
+  .tp-box{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:14px;
+          width:min(560px,100%);padding:16px 18px;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+  .tp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:15px}
+  .tp-head .tp-x{position:static}
+  .tp-lv,.tp-col{display:flex;align-items:center;gap:6px;padding:5px 0;flex-wrap:wrap}
+  .tp-lv select{padding:6px 8px;font-size:12.5px;min-width:0}
+  .tp-lv .tp-key{flex:1 1 140px}
+  .tp-lbl{width:58px;font-size:12px;color:var(--muted)}
+  .tp-col{border-bottom:1px solid var(--line);padding:6px 0}
+  .tp-col span{flex:1;font-size:13px}
+  .tp-ic{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;
+         width:32px;height:30px;cursor:pointer;font-size:14px;line-height:1}
+  .tp-ic:disabled{opacity:.3;cursor:default}
+  .tp-ic:not(:disabled):hover{border-color:var(--accent)}
+  .tp-row{display:flex;gap:8px;align-items:center;margin-top:8px}
+  #tp-cols{max-height:40vh;overflow:auto}
   /* Inventory tab: expandable type rows */
   tr.grp{cursor:pointer}
   tr.grp td:first-child{font-weight:600}
@@ -535,6 +569,9 @@
 
 <main>
   <section class="tab" data-tab="bar">
+    <a class="shelfLink" href="https://claude.ai/artifact/MBKPGozEBWVxMdjw2GbNh9"
+       target="_blank" rel="noopener">&#128203; Bar Shelf Check
+       <span>record amounts &amp; locations &rarr;</span></a>
     <div class="intro" id="bar-intro"></div>
     <div class="barGrid" id="bar-grid"></div>
     <div id="bar-list" hidden></div>
@@ -617,7 +654,7 @@
     <h3 style="margin:18px 0 10px">Full tasting log</h3>
     <div class="controls">
       <input type="search" id="hist-q" placeholder="Search drink, brand, or comment&hellip;">
-      <span class="count" id="hist-count"></span>
+      <span class="count" id="hist-rows"></span>
     </div>
     <div class="tablewrap"><table id="hist-table"></table></div>
   </section>
@@ -1057,49 +1094,267 @@ $("#nav").addEventListener("click",e=>{
 document.querySelector('.tab[data-tab="bar"]').classList.add("active");
 
 /* ---------- reusable sortable/filterable table ---------------------------- */
-/* cols: [{key,label,cls,fmt}]  rows: array of objects */
+/* cols: [{key,label,cls,fmt}]  rows: array of objects
+   Every table built here also gets, saved per table on this device:
+   - Multi-level sorting, like Excel's Custom Sort. Click a heading to sort by
+     it alone (click again to flip). Shift-click adds it as the next level.
+     The "Sort & columns" button opens a panel to add, reorder or remove levels.
+   - Column order. Drag a heading sideways with the mouse, or use the arrows in
+     the same panel (that's the way on a phone).
+   Columns whose key starts with "_" (the print tick-box) stay pinned first and
+   can't be sorted or moved. Blank cells always sort last, as in Excel.      */
+const TBL_PREFS = "tbl:";
+// Cabinet order for the Shelf column: left cabinet top to bottom, then centre,
+// then right, then the other places. Anything unrecognised sorts after those.
+const SHELF_ORDER = ["L6","L5","L4","L3","L2","L1","C5","C4","C3","C2","C1","R6","R5","R4","R3","R2","R1",
+  "Kitchen Refrigerator","Garage Refrigerator","Basement Refrigerator","Office Floor"];
+const shelfRank = s => { if (!s) return null; const i = SHELF_ORDER.indexOf(s); return i < 0 ? 100 : i; };
+function tblLoad(table){ try { return JSON.parse(localStorage.getItem(TBL_PREFS + table.id) || "{}"); } catch(e) { return {}; } }
+function tblSave(table, state){
+  try { localStorage.setItem(TBL_PREFS + table.id, JSON.stringify({order: state.order, sorts: state.sorts})); } catch(e) {}
+}
+const plainLabel = h => { const d = document.createElement("div"); d.innerHTML = h; return d.textContent.trim(); };
+const isBlank = v => v == null || v === "";
+// A column may give {sort: row => value} when its natural order isn't
+// alphabetical (shelves sort in cabinet order, L6 first).
+function tblCompare(sorts, cols){
+  const get = {};
+  sorts.forEach(s => { const c = (cols || []).find(c => c.key === s.key); get[s.key] = c && c.sort ? c.sort : (r => r[s.key]); });
+  return (a, b) => {
+    for (const s of sorts){
+      const x = get[s.key](a), y = get[s.key](b), xb = isBlank(x), yb = isBlank(y);
+      if (xb && yb) continue;
+      if (xb) return 1;                       // blanks last, whichever direction
+      if (yb) return -1;
+      const d = (typeof x === "number" && typeof y === "number") ? x - y
+        : String(x).localeCompare(String(y), undefined, {numeric: true, sensitivity: "base"});
+      if (d) return s.desc ? -d : d;
+    }
+    return 0;
+  };
+}
+// Put cols in the saved order. A column the saved order doesn't know yet
+// (newly added) lands right after the column it follows by default.
+function tblOrder(cols, order){
+  const pinned = cols.filter(c => c.key.startsWith("_")), movable = cols.filter(c => !c.key.startsWith("_"));
+  if (!order || !order.length) return pinned.concat(movable);
+  const rank = new Map(order.map((k, i) => [k, i]));
+  const r = (c, i) => {
+    if (rank.has(c.key)) return rank.get(c.key);
+    for (let j = i - 1; j >= 0; j--) if (rank.has(movable[j].key)) return rank.get(movable[j].key) + 0.5;
+    return -0.5;
+  };
+  const ranked = movable.map((c, i) => [r(c, i), i, c]).sort((p, q) => p[0] - q[0] || p[1] - q[1]).map(p => p[2]);
+  return pinned.concat(ranked);
+}
+// Store a new order for the columns currently shown, keeping the saved
+// positions of any columns that are hidden right now.
+function tblSetOrder(state, shownKeys){
+  const full = (state.order || []).slice();
+  shownKeys.forEach(k => { if (!full.includes(k)) full.push(k); });
+  const slots = full.map((k, i) => shownKeys.includes(k) ? i : -1).filter(i => i >= 0);
+  slots.forEach((slot, n) => full[slot] = shownKeys[n]);
+  state.order = full;
+}
+
 function makeTable(tableSel, cols, rows, state){
   const table = $(tableSel);
-  state.sortKey = state.sortKey || null; state.desc = state.desc || false;
+  if (!state._init){
+    state._init = true;
+    const saved = tblLoad(table);
+    state.sorts = Array.isArray(saved.sorts) ? saved.sorts
+      : (state.sortKey ? [{key: state.sortKey, desc: !!state.desc}] : []);
+    state._defaultSorts = state.sortKey ? [{key: state.sortKey, desc: !!state.desc}] : [];
+    state.order = Array.isArray(saved.order) ? saved.order : [];
+  }
+  state.cols = cols;
+  const shownCols = () => tblOrder(state.cols, state.order);
+  const sortable = () => state.cols.filter(c => !c.key.startsWith("_"));
+  const valid = () => { const ks = new Set(sortable().map(c => c.key)); state.sorts = state.sorts.filter(s => ks.has(s.key)); };
+
   function render(list){
-    const head = "<thead><tr>"+cols.map(c=>{
-      const sorted = c.key===state.sortKey ? "sorted"+(state.desc?" desc":"") : "";
+    const oc = shownCols();
+    const multi = state.sorts.length > 1;
+    const head = "<thead><tr>"+oc.map(c=>{
+      const lv = state.sorts.findIndex(s => s.key === c.key);
+      const sorted = lv >= 0 ? "sorted"+(state.sorts[lv].desc?" desc":"") : "";
+      const badge = lv >= 0 && multi ? `<sup class="slv">${lv+1}</sup>` : "";
+      const tip = c.key.startsWith("_") ? "" : ` title="Click to sort · Shift-click to add a sort level · drag to move"`;
       // the column's own class goes on the header too, so things like the
       // non-printing tick-box column hide as a whole and stay aligned
-      return `<th class="${sorted} ${c.cls||''}" data-k="${c.key}">${c.label}<span class="cgrip" title="Drag to resize · double-click to fit"></span></th>`;
+      return `<th class="${sorted} ${c.cls||''}" data-k="${c.key}"${tip}>${c.label}${badge}<span class="cgrip" title="Drag to resize · double-click to fit"></span></th>`;
     }).join("")+"</tr></thead>";
-    const body = "<tbody>"+list.map(r=>"<tr>"+cols.map(c=>{
+    const body = "<tbody>"+list.map(r=>"<tr>"+oc.map(c=>{
       let v = r[c.key];
       v = c.fmt ? c.fmt(v,r) : esc(v);
       return `<td class="${c.cls||''}">${v==null?'':v}</td>`;
     }).join("")+"</tr>").join("")+"</tbody>";
     table.innerHTML = head+body;
-    colSizer(table, cols, state);                 // widths, grips, "..." tooltips
-    table.querySelectorAll("th").forEach(th=>th.onclick=e=>{
-      if(e.target.closest(".cgrip") || state._justResized) return;  // a resize is not a sort
-      const k=th.dataset.k;
-      if(state.sortKey===k) state.desc=!state.desc; else {state.sortKey=k;state.desc=false;}
-      apply();
+    colSizer(table, oc, state);                   // widths, grips, "..." tooltips
+    table.querySelectorAll("th").forEach(th=>{
+      const k = th.dataset.k;
+      if (k.startsWith("_")) return;
+      th.onclick = e=>{
+        if(e.target.closest(".cgrip") || state._justResized) return;  // a resize or drag is not a sort
+        const i = state.sorts.findIndex(s => s.key === k);
+        if (e.shiftKey){
+          if (i >= 0) state.sorts[i].desc = !state.sorts[i].desc; else state.sorts.push({key: k, desc: false});
+        } else if (state.sorts.length === 1 && i === 0){
+          state.sorts[0].desc = !state.sorts[0].desc;
+        } else {
+          state.sorts = [{key: k, desc: false}];
+        }
+        tblSave(table, state); apply();
+      };
+      th.onpointerdown = e => tblDragStart(e, th, table, state, apply);
     });
+    tblTools(table, state);
   }
   function apply(){
+    valid();
     let list = rows.filter(state.filter||(()=>true));
-    if(state.sortKey){
-      const k=state.sortKey;
-      list.sort((a,b)=>{
-        let x=a[k],y=b[k];
-        const xn=typeof x==="number", yn=typeof y==="number";
-        if(xn&&yn) return state.desc? y-x : x-y;
-        x=(x==null?"":String(x)).toLowerCase(); y=(y==null?"":String(y)).toLowerCase();
-        return state.desc? (y<x?-1:y>x?1:0) : (x<y?-1:x>y?1:0);
-      });
-    }
+    if (state.sorts.length) list.sort(tblCompare(state.sorts, state.cols));
     render(list);
     if(state.countSel) $(state.countSel).textContent = list.length+" rows";
     if(state.afterApply) state.afterApply(list);   // e.g. refresh KPI cards from the filtered set
   }
   state.apply = apply;
+  state.reorder = keys => { tblSetOrder(state, keys); tblSave(table, state); apply(); };
+  state.shownCols = shownCols;
+  state.sortable = sortable;
+  state.save = () => tblSave(table, state);
   apply();
+}
+
+/* Drag a heading sideways (mouse only - on a touch screen a sideways swipe
+   scrolls the table, so phones use the arrows in the panel instead). */
+function tblDragStart(e, th, table, state, apply){
+  if (e.pointerType !== "mouse" || e.button !== 0 || e.target.closest(".cgrip")) return;
+  const startX = e.clientX; let dragging = false, target = null, after = false;
+  const ths = () => [...table.querySelectorAll("thead th")].filter(h => !h.dataset.k.startsWith("_"));
+  const clear = () => ths().forEach(h => h.classList.remove("drop-before", "drop-after", "th-drag"));
+  const move = ev => {
+    if (!dragging && Math.abs(ev.clientX - startX) < 8) return;
+    if (!dragging){ dragging = true; document.body.classList.add("col-moving"); }
+    clear(); th.classList.add("th-drag");
+    target = null;
+    for (const h of ths()){
+      const r = h.getBoundingClientRect();
+      if (ev.clientX >= r.left && ev.clientX < r.right){ target = h; after = ev.clientX > r.left + r.width/2; break; }
+    }
+    if (target && target !== th) target.classList.add(after ? "drop-after" : "drop-before");
+  };
+  const up = () => {
+    document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
+    document.body.classList.remove("col-moving"); clear();
+    if (!dragging) return;
+    state._justResized = true; setTimeout(() => state._justResized = false, 0);   // swallow the click
+    if (!target || target === th) return;
+    const keys = state.shownCols().map(c => c.key).filter(k => !k.startsWith("_"));
+    const from = keys.indexOf(th.dataset.k); keys.splice(from, 1);
+    let to = keys.indexOf(target.dataset.k) + (after ? 1 : 0);
+    keys.splice(to, 0, th.dataset.k);
+    state.reorder(keys);
+  };
+  document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
+}
+
+/* The "Sort & columns" button beside the table's row count, plus a one-line
+   summary of the current sort. */
+function tblTools(table, state){
+  if (!table._tools){
+    const btn = document.createElement("button");
+    btn.className = "chip tblbtn"; btn.type = "button";
+    btn.innerHTML = "&#8645; Sort &amp; columns";
+    btn.onclick = e => { e.stopPropagation(); tblPanelOpen(table, state); };
+    const sum = document.createElement("span"); sum.className = "count sortsum";
+    const cnt = state.countSel && $(state.countSel);
+    if (cnt && cnt.parentElement && cnt.tagName !== "CANVAS"){
+      cnt.parentElement.insertBefore(btn, cnt); cnt.parentElement.insertBefore(sum, cnt);
+    } else {
+      const bar = document.createElement("div"); bar.className = "controls tbltools";
+      bar.append(btn, sum);
+      const wrap = table.closest(".tablewrap") || table;
+      wrap.parentElement.insertBefore(bar, wrap);
+    }
+    table._tools = {btn, sum};
+  }
+  const lab = k => { const c = state.cols.find(c => c.key === k); return c ? plainLabel(c.label) : k; };
+  const s = state.sorts;
+  table._tools.sum.textContent = s.length > 1
+    ? "Sorted: " + s.map(x => lab(x.key) + (x.desc ? " ▼" : " ▲")).join(", then ")
+    : "";
+  table._tools.btn.classList.toggle("active", s.length > 1);
+}
+
+/* One shared panel, opened for whichever table's button was pressed. */
+function tblPanelOpen(table, state){
+  let p = $("#tblpanel");
+  if (!p){
+    p = document.createElement("div"); p.id = "tblpanel"; p.hidden = true;
+    p.innerHTML = `<div class="tp-box" role="dialog" aria-label="Sort and columns">
+      <div class="tp-head"><b>Sort &amp; columns</b><button class="mclose tp-x" type="button" aria-label="Close">&times;</button></div>
+      <div class="pop-h">Sort levels</div><div id="tp-sorts"></div>
+      <div class="tp-row"><button class="chip" id="tp-add" type="button">+ Add level</button>
+        <button class="chip" id="tp-sortreset" type="button">Default sort</button></div>
+      <div class="pop-h" style="margin-top:16px">Column order <span style="text-transform:none;letter-spacing:0">(top = leftmost)</span></div><div id="tp-cols"></div>
+      <div class="tp-row"><button class="chip" id="tp-colreset" type="button">Default order</button>
+        <span style="flex:1"></span><button class="chip active" id="tp-done" type="button">Done</button></div>
+    </div>`;
+    document.body.appendChild(p);
+    p.addEventListener("click", e => { if (e.target === p || e.target.closest(".tp-x,#tp-done")) p.hidden = true; });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") p.hidden = true; });
+  }
+  p._t = {table, state};
+  const go = () => { state.save(); state.apply(); draw(); };
+  function draw(){
+    const opts = state.sortable();
+    const optHTML = sel => opts.map(c => `<option value="${c.key}"${c.key === sel ? " selected" : ""}>${esc(plainLabel(c.label))}</option>`).join("");
+    $("#tp-sorts").innerHTML = state.sorts.length ? state.sorts.map((s, i) => `
+      <div class="tp-lv" data-i="${i}"><span class="tp-lbl">${i ? "Then by" : "Sort by"}</span>
+        <select class="tp-key">${optHTML(s.key)}</select>
+        <select class="tp-dir"><option value="0"${s.desc ? "" : " selected"}>A&rarr;Z / low&rarr;high</option>
+          <option value="1"${s.desc ? " selected" : ""}>Z&rarr;A / high&rarr;low</option></select>
+        <button class="tp-ic" data-a="up" type="button" aria-label="Move level up"${i ? "" : " disabled"}>&#8593;</button>
+        <button class="tp-ic" data-a="down" type="button" aria-label="Move level down"${i < state.sorts.length - 1 ? "" : " disabled"}>&#8595;</button>
+        <button class="tp-ic" data-a="del" type="button" aria-label="Remove level">&times;</button></div>`).join("")
+      : `<div class="count" style="padding:4px 0 8px">Not sorted - rows show in workbook order.</div>`;
+    const shown = state.shownCols().filter(c => !c.key.startsWith("_"));
+    $("#tp-cols").innerHTML = shown.map((c, i) => `
+      <div class="tp-col" data-k="${c.key}"><span>${esc(plainLabel(c.label))}</span>
+        <button class="tp-ic" data-a="cup" type="button" aria-label="Move left"${i ? "" : " disabled"}>&#8593;</button>
+        <button class="tp-ic" data-a="cdown" type="button" aria-label="Move right"${i < shown.length - 1 ? "" : " disabled"}>&#8595;</button></div>`).join("");
+  }
+  $("#tp-sorts").onchange = e => {
+    const lv = e.target.closest(".tp-lv"); if (!lv) return; const s = state.sorts[+lv.dataset.i];
+    if (e.target.classList.contains("tp-key")) s.key = e.target.value; else s.desc = e.target.value === "1";
+    // the same column twice adds nothing - keep the higher level
+    state.sorts = state.sorts.filter((x, i, a) => a.findIndex(y => y.key === x.key) === i);
+    go();
+  };
+  $("#tp-sorts").onclick = e => {
+    const b = e.target.closest(".tp-ic"); if (!b) return; const i = +b.closest(".tp-lv").dataset.i, s = state.sorts;
+    if (b.dataset.a === "del") s.splice(i, 1);
+    if (b.dataset.a === "up" && i) [s[i-1], s[i]] = [s[i], s[i-1]];
+    if (b.dataset.a === "down" && i < s.length - 1) [s[i+1], s[i]] = [s[i], s[i+1]];
+    go();
+  };
+  $("#tp-add").onclick = () => {
+    const used = new Set(state.sorts.map(s => s.key));
+    const next = state.sortable().find(c => !used.has(c.key)); if (!next) return;
+    state.sorts.push({key: next.key, desc: false}); go();
+  };
+  $("#tp-sortreset").onclick = () => { state.sorts = state._defaultSorts.map(s => ({...s})); go(); };
+  $("#tp-cols").onclick = e => {
+    const b = e.target.closest(".tp-ic"); if (!b) return;
+    const keys = state.shownCols().map(c => c.key).filter(k => !k.startsWith("_"));
+    const i = keys.indexOf(b.closest(".tp-col").dataset.k), j = b.dataset.a === "cup" ? i - 1 : i + 1;
+    if (j < 0 || j >= keys.length) return;
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+    tblSetOrder(state, keys); go();
+  };
+  $("#tp-colreset").onclick = () => { state.order = []; go(); };
+  draw(); p.hidden = false;
 }
 
 /* ---------- resizable columns (used by every makeTable table) ------------- */
@@ -1388,7 +1643,7 @@ function typeOptions(sel, values, label){
     {key:"brand",label:"Brand"},
     {key:"type",label:"Type",fmt:v=>`<span class="pill">${esc(v)}</span>`},
     // Cabinet shelf (L6–L1 left, C5–C1 centre, R6–R1 right). Blank until recorded.
-    {key:"shelf",label:"Shelf",fmt:v=>v?`<b>${esc(v)}</b>`:""},
+    {key:"shelf",label:"Shelf",fmt:v=>v?`<b>${esc(v)}</b>`:"",sort:r=>shelfRank(r.shelf)},
     // Rating history, pulled from Drink_History. Blank when never rated.
     {key:"nRatings",label:"# Ratings",cls:"num",fmt:v=>v==null?"":v},
     {key:"avgRating",label:"Avg",cls:"num",fmt:v=>v==null?"":`<span class="rate" style="color:${rateColor(v)}">${fmt(v)}</span>`},
@@ -1953,7 +2208,7 @@ document.addEventListener("click", e=>{
     {key:"count",label:"Times made",cls:"num"},
   ],top,{sortKey:"avg",desc:true});
   // full log
-  const st={countSel:"#hist-count",sortKey:"date",desc:true};
+  const st={countSel:"#hist-rows",sortKey:"date",desc:true};
   const cols=[
     {key:"date",label:"Date"},
     {key:"specific",label:"Drink",fmt:v=>`<span class="drinklink" data-n="${esc(v)}">${esc(v)}</span>`},
