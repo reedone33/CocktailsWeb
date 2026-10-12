@@ -364,6 +364,10 @@
   .pop-f{display:flex;gap:6px;margin-top:10px;border-top:1px solid var(--line);padding-top:9px}
   .pop-f .chip{padding:4px 10px;font-size:11.5px}
 
+  /* Amount left: tracker trust level and running-low pill */
+  .amtmark{color:var(--accent);font-weight:700;margin-right:3px}
+  .amtq{color:var(--muted);margin-left:3px;font-size:11px}
+  .lowpill{display:inline-block;padding:1px 7px;border-radius:20px;border:1px solid var(--c);color:var(--c);font-weight:600}
   /* Sort & columns: multi-level sort and column order (every makeTable table) */
   th .slv{font-size:9px;color:var(--accent);margin-left:2px;vertical-align:super}
   th.drop-before{box-shadow:inset 3px 0 0 var(--accent)}
@@ -603,7 +607,7 @@
   </section>
 
   <section class="tab" data-tab="ing">
-    <div class="intro">Your bottle list with pour economics and the average rating each spirit earned in your history (replaces IngredientsRated). <b>On hand</b> hides empties; <b>Empty</b> shows bottles at 0 remaining &mdash; handy for a restock list. The cards above update live as you filter.</div>
+    <div class="intro">Your bottle list with pour economics and the average rating each spirit earned in your history (replaces IngredientsRated). <b>On hand</b> hides empties; <b>Low</b> shows open bottles at 20% or less; <b>Empty</b> shows bottles at 0 remaining &mdash; together a restock list. In <b>Amt left</b>, <b>&asymp;</b> means estimated from drinks you made since your last check (hover over it on a computer for details) and <b>?</b> means never checked. The cards above update live as you filter.</div>
     <div class="controls">
       <input type="search" id="ing-q" placeholder="Search ingredient or brand&hellip;">
       <div class="chips" id="ing-scope" title="Which bottles to show"></div>
@@ -934,8 +938,10 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
         '<span class="tname">' + esc(name) + '</span>' +
       '</div>';
 
+    const lowN = stock.filter(r => r.low).length;
     $("#bar-grid").innerHTML =
       tile("All Spirits", stock.length, "#3d2e14", ICONS.wine) +
+      (lowN ? tile("Running Low", lowN, "#3a1d1d", ICONS.other) : "") +
       types.map((t,i) => tile(t, byType[t].length, TINTS[i % TINTS.length], iconFor(t))).join("");
   }
 
@@ -945,13 +951,19 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
   // How much is left. The column is mixed: most bottles are a 0-1 fraction,
   // but 34 of them hold a plain count (Underberg 10, Beefeater 80). A bar only
   // means something for a fraction, so anything above 1 shows the number alone.
-  function amountCell(v){
+  function amountCell(v, r){
     if (v == null) return "";
+    // Bottle tracker: "≈" = estimated from drinks made since the last check,
+    // "?" = never checked; "Low" when an open bottle is at 20% or less.
+    const tag = r && r.stock === "estimated"
+        ? ' <span style="color:var(--accent)" title="Estimated from drinks since your last check">&asymp; est.</span>'
+        : r && r.stock === "unchecked" ? ' <span style="color:var(--muted)" title="Never checked">?</span>' : "";
+    const low = r && r.low ? ' <span style="color:#fbbf24;font-weight:700">Low</span>' : "";
     if (v > 1) return '<span class="v">' + fmt(v) + '</span>';
     const pct = Math.round(v * 100);
     const col = v >= 0.5 ? "#4ade80" : v >= 0.2 ? "#fbbf24" : "#f87171";
     return '<span class="amtbar"><i style="width:' + pct + '%;background:' + col + '"></i></span>' +
-           ' <span class="v">' + pct + '%</span>';
+           ' <span class="v">' + pct + '%</span>' + tag + low;
   }
 
   function field(k, v){
@@ -1003,7 +1015,7 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
             field("Proof",      r.proof != null ? fmt(r.proof, 0) : "") +
             field("Bottle",     r.size  != null ? fmt(r.size, 0) + " ml" : "") +
             field("Shelf",      r.shelf ? "<b>" + esc(r.shelf) + "</b>" : "") +
-            field("Remaining",  amountCell(r.amt)) +
+            field("Remaining",  amountCell(r.amt, r)) +
             field("Cost",       r.cost  != null ? money(r.cost) : "") +
             field("Pour (2 oz)",r.p2    != null ? money(r.p2)   : "") +
             field("Purchased",  esc(r.purchased)) +
@@ -1035,7 +1047,9 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
   }
 
   function openType(type){
-    listRows  = type === "All Spirits" ? stock : (byType[type] || []);
+    listRows  = type === "All Spirits" ? stock
+              : type === "Running Low" ? stock.filter(r => r.low)    // a shopping list
+              : (byType[type] || []);
     listTitle = type;
     query = ""; sortKey = "name"; sortAsc = true;
     $("#bar-grid").hidden = true;
@@ -1613,6 +1627,29 @@ function typeOptions(sel, values, label){
   render();
 })();
 
+/* How much is left, with the bottle tracker's trust level:
+   ≈ estimated (drinks subtracted since the last check), ? never checked,
+   amber/red pill = running low (20% or less). */
+function amtLeft(v, r){
+  if (v == null) return "";
+  if (v === 0) return `<span class="pill" style="color:#f87171;border-color:#f87171">Empty</span>`;
+  let tip = "", mark = "";
+  if (r && r.stock === "estimated"){
+    const s = r.since;
+    tip = `Estimated. Last checked ${r.cpAmt != null ? fmt(r.cpAmt,2) : "?"}${r.checked ? " on " + r.checked : ""}` +
+          (s ? `; ${s.drinks} drink${s.drinks === 1 ? "" : "s"} since (${Math.round(s.ml)} ml)` : "");
+    mark = `<span class="amtmark">&asymp;</span>`;
+  } else if (r && r.stock === "unchecked"){
+    tip = "Never checked - this is the old figure from the workbook";
+  } else if (r && r.checked){
+    tip = "Checked on " + r.checked;
+  }
+  let val = fmt(v, 2);
+  if (r && r.low) val = `<span class="lowpill" style="--c:${v <= 0.1 ? "#f87171" : "#fbbf24"}">${val}</span>`;
+  const q = r && r.stock === "unchecked" ? `<span class="amtq">?</span>` : "";
+  return `<span class="amtcell"${tip ? ` title="${esc(tip)}"` : ""}>${mark}${val}${q}</span>`;
+}
+
 /* ========================= INGREDIENTS ================================== */
 (function(){
   // Every bottle; the On hand / Empty / All toggle decides which are shown.
@@ -1623,10 +1660,12 @@ function typeOptions(sel, values, label){
   // ingredient name can be on several rows (an empty bottle and its refill).
   const picked = new Set();
   const keyOf = r => r.bottleId || r.ingredient;
-  const SCOPES=[["On hand","hand"],["Empty","empty"],["All","all"]];
+  const SCOPES=[["On hand","hand"],["Low","low"],["Empty","empty"],["All","all"]];
+  // Low = an open alcohol bottle at 20% or less (flag computed by the builder).
+  const scopeOk = (v, r) => v==="all" ? true : v==="empty" ? r.amt===0 : v==="low" ? !!r.low : r.amt!==0;
   let ingScope="hand";
-  const inScope = r => ingScope==="all" ? true : ingScope==="empty" ? r.amt===0 : r.amt!==0;
-  const scopeCount = v => rows.filter(r=> v==="all" ? true : v==="empty" ? r.amt===0 : r.amt!==0).length;
+  const inScope = r => scopeOk(ingScope, r);
+  const scopeCount = v => rows.filter(r => scopeOk(v, r)).length;
   $("#ing-scope").innerHTML = SCOPES.map(([l,v])=>
     `<button class="chip${v===ingScope?' active':''}" data-s="${v}">${l} <span style="opacity:.7">${scopeCount(v)}</span></button>`).join("");
   $("#ing-scope").addEventListener("click",e=>{
@@ -1650,7 +1689,8 @@ function typeOptions(sel, values, label){
     {key:"highRating",label:"High",cls:"num",fmt:v=>v==null?"":fmt(v)},
     {key:"lastRated",label:"Last rated",fmt:v=>v==null?"":esc(v)},
     {key:"proof",label:"Proof",cls:"num"},
-    {key:"amt",label:"Amt left",cls:"num",fmt:v=>v==null?"":v===0?`<span class="pill" style="color:#f87171;border-color:#f87171">Empty</span>`:fmt(v,2)},
+    {key:"amt",label:"Amt left",cls:"num",fmt:(v,r)=>amtLeft(v,r)},
+    {key:"checked",label:"Last checked",fmt:v=>v?esc(v):""},
     {key:"cost",label:"Cost",cls:"num",fmt:money},
     {key:"cost30",label:"Cost/oz",cls:"num",fmt:money},
     {key:"origin",label:"Origin"},
