@@ -10,7 +10,7 @@
    without it, iOS would happily show last month's numbers forever.
    =========================================================================== */
 
-const CACHE_VERSION = "lastcall-20261024-0942";      // rewritten automatically on publish
+const CACHE_VERSION = "lastcall-20261026-1140";      // rewritten automatically on publish
 const FILES = [
   "./",
   "./index.html",
