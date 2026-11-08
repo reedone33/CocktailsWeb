@@ -99,7 +99,14 @@
   .chip:hover{color:var(--text);border-color:var(--accent)}
   .chip.active{background:var(--accent);color:#0f172a;border-color:var(--accent)}
   .rate{font-weight:700}
+  /* Flavor tag chips (2026-11-08): colour = flavor family */
+  .tags{display:inline-flex;flex-wrap:wrap;gap:3px;align-items:center;margin:1px 6px 1px 0}
+  .tag{font-size:11px;line-height:16px;padding:0 7px;border-radius:999px;border:1px solid;white-space:nowrap}
+  .tagstage{font-size:10px;font-weight:700;color:var(--muted);margin-right:1px}
+  .mtags .row{display:flex;gap:8px;align-items:baseline;margin:4px 0}
+  .mtags .lbl{width:52px;color:var(--muted);font-size:12px;flex:none}
   .comment{white-space:normal;max-width:360px;color:var(--muted);font-size:12px}
+  td.tagcell{white-space:normal;min-width:230px;max-width:360px}   /* flavor tag column wraps */
 
   /* Chart + grid layout */
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
@@ -176,6 +183,8 @@
   .bottle .f .k{color:var(--muted);min-width:88px;flex:0 0 auto}
   .bottle .f .v{overflow:hidden;text-overflow:ellipsis}
   .bottle .f .v{font-variant-numeric:tabular-nums}
+  .bottle .btags{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-top:8px;font-size:12.5px}
+  .bottle .btags .k{color:var(--muted);min-width:88px}
   .amtbar{display:inline-block;width:42px;height:6px;border-radius:3px;background:var(--panel2);
           overflow:hidden;vertical-align:middle}
   .amtbar i{display:block;height:100%;border-radius:3px}
@@ -649,7 +658,7 @@
     </div>
     <div class="grid" style="margin-bottom:18px">
       <div class="card"><h3>Average rating by year</h3><canvas id="hist-year"></canvas></div>
-      <div class="card"><h3>Rating distribution</h3><canvas id="hist-dist"></canvas></div>
+      <div class="card"><h3>Rating distribution <span style="font-weight:400;color:var(--muted);font-size:.8em">(RumX-based scale)</span></h3><canvas id="hist-dist"></canvas></div>
     </div>
     <div class="card" style="margin-bottom:18px">
       <h3>Top-rated drinks (2+ makes)</h3>
@@ -867,7 +876,7 @@ try {
 /* ---------- tiny helpers -------------------------------------------------- */
 const $ = s => document.querySelector(s);
 const esc = s => (s==null?"":String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-const fmt = (v,d=2)=> v==null||v===""? "" : (typeof v==="number"? v.toFixed(d).replace(/\.00$/,"") : v);
+const fmt = (v,d=2)=> v==null||v===""? "" : (typeof v==="number"? v.toFixed(d).replace(/\.00$/,"").replace(/(\.\d)0$/,"$1") : v);   // 8.80 -> 8.8 (new 1-decimal ratings), 8.00 -> 8
 const money = v => v==null? "" : "$"+Number(v).toFixed(2);
 
 /* ---------- Bar tab: the inventory grid ----------------------------------- */
@@ -1025,6 +1034,9 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
                       ' <span style="color:var(--muted)">(' + r.nRatings + ')</span>'
                     : "") +
           '</div>' +
+          // Your most-used flavor tags for this bottle (full width, under the details)
+          ((r.topTags && r.topTags.length)
+            ? '<div class="btags"><span class="k">Your tags</span>' + tagChips(r.topTags, 8) + '</div>' : '') +
         '</div>').join("")
         : '<div class="barEmpty">Nothing matches &ldquo;' + esc(query) + '&rdquo;.</div>');
 
@@ -1687,6 +1699,7 @@ function amtLeft(v, r){
     {key:"nRatings",label:"# Ratings",cls:"num",fmt:v=>v==null?"":v},
     {key:"avgRating",label:"Avg",cls:"num",fmt:v=>v==null?"":`<span class="rate" style="color:${rateColor(v)}">${fmt(v)}</span>`},
     {key:"highRating",label:"High",cls:"num",fmt:v=>v==null?"":fmt(v)},
+    {key:"topTags",label:"Your tags",cls:"tagcell",fmt:v=>tagChips(v,4)},
     {key:"lastRated",label:"Last rated",fmt:v=>v==null?"":esc(v)},
     {key:"proof",label:"Proof",cls:"num"},
     {key:"amt",label:"Amt left",cls:"num",fmt:(v,r)=>amtLeft(v,r)},
@@ -2034,15 +2047,24 @@ function openDrink(name){
   const recNotes = rec && rec.notes
     ? `<div class="msec"><h4>Recipe notes</h4><div class="mprep">${esc(rec.notes)}</div></div>` : "";
 
-  // Dated tasting notes — only the runs that actually carry a comment
-  const noted = runs.filter(h=>h.comment && String(h.comment).trim());
+  // Flavor tags: your most-used Nose / Palate / Finish tags across every tasting
+  const tagCount = key => { const c={}; runs.forEach(h=>(h[key]||[]).forEach(t=>c[t]=(c[t]||0)+1));
+                            return Object.entries(c).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])); };
+  const tagRows = [["Nose","nose"],["Palate","palate"],["Finish","finish"]]
+    .map(([lbl,k])=>[lbl,tagCount(k)]).filter(x=>x[1].length);
+  const flavorHtml = tagRows.length ? `<div class="msec mtags"><h4>Flavor tags</h4>${
+    tagRows.map(([lbl,l])=>`<div class="row"><span class="lbl">${lbl}</span>${tagChips(l,12)}</div>`).join("")}</div>` : "";
+
+  // Dated tasting notes — runs that carry a comment or flavor tags
+  const noted = runs.filter(h=>(h.comment && String(h.comment).trim()) || tagText(h));
   const notes = noted.length ? `<div class="msec"><h4>Tasting notes</h4>${
     noted.map(h=>{
       const s=score(h);
       const parts=[h.reed!=null?`Reed ${fmt(h.reed)}`:null,
                    h.candice!=null?`Candice ${fmt(h.candice)}`:null].filter(Boolean).join(" · ");
       return `<div class="mnote"><div class="d">${esc(h.date||"")} ${parts?"· "+esc(parts):""}</div>`+
-             `<div class="c">${esc(h.comment)}</div></div>`;
+             (tagText(h)?`<div class="c">${tastingTags(h)}</div>`:"")+
+             (h.comment?`<div class="c">${esc(h.comment)}</div>`:"")+`</div>`;
     }).join("")}</div>` : "";
 
   const cat = rec?.category || bott?.type || "";
@@ -2069,7 +2091,7 @@ function openDrink(name){
     <div class="mbody">
       ${imgSlot}
       <div class="mstats">${stats}</div>
-      ${who}${recipeHtml}${usageHtml}${prep}${recNotes}${notes}
+      ${who}${flavorHtml}${recipeHtml}${usageHtml}${prep}${recNotes}${notes}
     </div>`;
   $("#drink-modal").hidden = false;
 
@@ -2256,11 +2278,12 @@ document.addEventListener("click", e=>{
     {key:"reed",label:"Reed",cls:"num",fmt:v=>v==null?"":`<span style="color:${rateColor(v)}">${fmt(v)}</span>`},
     {key:"candice",label:"Candice",cls:"num",fmt:v=>v==null?"":fmt(v)},
     {key:"avg",label:"Avg",cls:"num",fmt:v=>fmt(v)},
+    {key:"nose",label:"Flavor tags",cls:"tagcell",fmt:(v,r)=>tastingTags(r,3)},
     {key:"comment",label:"Comment",cls:"comment"},
   ];
   st.filter=r=>{
     const q=$("#hist-q").value.toLowerCase();
-    return !q || ((r.specific||"")+" "+(r.brand||"")+" "+(r.comment||"")).toLowerCase().includes(q);
+    return !q || ((r.specific||"")+" "+(r.brand||"")+" "+(r.comment||"")+" "+tagText(r)).toLowerCase().includes(q);
   };
   makeTable("#hist-table",cols,DATA.history,st);
   $("#hist-q").oninput=st.apply;
@@ -2276,11 +2299,12 @@ document.addEventListener("click", e=>{
     {key:"specific",label:"Rum",fmt:v=>dlink(v)},
     {key:"brand",label:"Brand"},
     {key:"reed",label:"Rating",cls:"num",fmt:v=>v==null?"":`<span class="rate" style="color:${rateColor(v)}">${fmt(v)}</span>`},
+    {key:"nose",label:"Flavor tags",cls:"tagcell",fmt:(v,r)=>tastingTags(r,3)},
     {key:"comment",label:"Comment",cls:"comment"},
   ];
   st.filter=r=>{
     const q=$("#rum-q").value.toLowerCase();
-    return !q || ((r.specific||"")+" "+(r.comment||"")).toLowerCase().includes(q);
+    return !q || ((r.specific||"")+" "+(r.comment||"")+" "+tagText(r)).toLowerCase().includes(q);
   };
   makeTable("#rum-table",cols,DATA.rums,st);
   $("#rum-q").oninput=st.apply;
@@ -2788,7 +2812,7 @@ document.addEventListener("click", e=>{
 
   // Superlatives
   const priciest = ing.reduce((a,b)=>(b.cost||0)>(a.cost||0)?b:a, seed);
-  const valueBuys= ing.filter(r=>r.rating!=null&&r.rating>=9&&r.cost30!=null);
+  const valueBuys= ing.filter(r=>r.rating!=null&&r.rating>=7&&r.cost30!=null);   // 7+ on the new scale = 9+ on the old one
   const bestValue= valueBuys.length? valueBuys.reduce((a,b)=>b.cost30<a.cost30?b:a) : null;
   const proofy   = ing.filter(r=>r.proof!=null).reduce((a,b)=>b.proof>a.proof?b:a, seed);
   const brandC={}; ing.forEach(r=>{ if(r.brand) brandC[r.brand]=(brandC[r.brand]||0)+1; });
@@ -2849,7 +2873,7 @@ document.addEventListener("click", e=>{
     <div class="info-sec"><h3>&#10024; Superlatives</h3>
       <div class="super">
         <div class="s"><div class="k">Priciest bottle</div><div class="v">${esc(priciest.ingredient)}</div><div class="sub">${m0(priciest.cost)}</div></div>
-        <div class="s"><div class="k">Best value (rated 9+)</div><div class="v">${bestValue?esc(bestValue.ingredient):'&mdash;'}</div><div class="sub">${bestValue?'$'+bestValue.cost30.toFixed(2)+' / oz &middot; ★ '+fmt(bestValue.rating):''}</div></div>
+        <div class="s"><div class="k">Best value (rated 7+)</div><div class="v">${bestValue?esc(bestValue.ingredient):'&mdash;'}</div><div class="sub">${bestValue?'$'+bestValue.cost30.toFixed(2)+' / oz &middot; ★ '+fmt(bestValue.rating):''}</div></div>
         <div class="s"><div class="k">Highest proof</div><div class="v">${esc(proofy.ingredient)}</div><div class="sub">${proofy.proof} proof</div></div>
         <div class="s"><div class="k">Most-owned brand</div><div class="v">${topBrand?esc(topBrand[0]):'&mdash;'}</div><div class="sub">${topBrand?topBrand[1]+' bottles':''}</div></div>
         <div class="s"><div class="k">Perfect pours (10+)</div><div class="v">${perfect}</div><div class="sub">tastings Reed scored 10+</div></div>
@@ -3138,7 +3162,26 @@ renderKpis(globalCards);
 })();
 
 /* ---------- chart option helpers (dark theme) ----------------------------- */
-function rateColor(v){ return v>=9?"#4ade80": v>=7?"#5eead4": v>=5?"#fbbf24":"#f87171"; }
+/* Rating colors for the RumX-based scale (since Nov 2026): 8.5+ excellent, 7.5+ very good, 6.5+ good, below that red. */
+function rateColor(v){ return v>=8.5?"#4ade80": v>=7.5?"#5eead4": v>=6.5?"#fbbf24":"#f87171"; }
+/* ---- Flavor tags (2026-11-08) ----
+   Each tasting can carry Nose / Palate / Finish tags. A chip's colour comes from the tag's
+   flavor family (DATA.tagFamily -> DATA.familyColor); unknown tags are grey. */
+function tagChip(t, n){
+  const fam = (DATA.tagFamily||{})[t], c = (DATA.familyColor||{})[fam] || "#94a3b8";
+  return `<span class="tag" style="color:${c};border-color:${c}66;background:${c}1f" title="${esc(fam||"")}">${esc(t)}${n>1?` ×${n}`:""}</span>`;
+}
+function tagChips(list, max){                    // list of tags, or of [tag, count]
+  if(!list || !list.length) return "";
+  const l = max ? list.slice(0,max) : list;
+  return `<span class="tags">${l.map(x=>Array.isArray(x)?tagChip(x[0],x[1]):tagChip(x)).join("")}${
+    max && list.length>max ? `<span class="count">+${list.length-max}</span>` : ""}</span>`;
+}
+function tastingTags(h, max){                    // one tasting's N / P / F chips
+  return [["N",h.nose],["P",h.palate],["F",h.finish]].filter(p=>p[1]&&p[1].length)
+    .map(([k,l])=>`<span class="tags"><span class="tagstage">${k}</span>${(max?l.slice(0,max):l).map(x=>tagChip(x)).join("")}</span>`).join("");
+}
+const tagText = h => [...(h.nose||[]),...(h.palate||[]),...(h.finish||[])].join(" ");
 function barOpts(money,stacked){
   return {responsive:true,plugins:{legend:{display:!!stacked,labels:{color:"#94a3b8"}}},
     scales:{x:{ticks:{color:"#94a3b8",font:{size:10}},grid:{display:false},stacked:!!stacked},
