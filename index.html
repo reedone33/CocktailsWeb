@@ -107,6 +107,19 @@
   .mtags .lbl{width:52px;color:var(--muted);font-size:12px;flex:none}
   .comment{white-space:normal;max-width:360px;color:var(--muted);font-size:12px}
   td.tagcell{white-space:normal;min-width:230px;max-width:360px}   /* flavor tag column wraps */
+  /* Rating Scale tab */
+  .sc-bands{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .sc-band{border:1px solid var(--line);border-left:4px solid;border-radius:10px;padding:10px 12px;background:var(--card)}
+  .sc-band .n{font-size:22px;font-weight:800}
+  .sc-band .l{font-weight:700;margin-top:2px}
+  .sc-band .d{color:var(--muted);font-size:12px;margin-top:4px;line-height:1.4}
+  .sc-band .c{color:var(--muted);font-size:11px;margin-top:6px}
+  .sc-conv{display:flex;align-items:center;gap:10px;margin:4px 0 10px;flex-wrap:wrap}
+  .sc-conv input{width:90px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text)}
+  .sc-conv b{font-size:22px}
+  table.sc{width:100%;font-size:13px} table.sc td,table.sc th{padding:5px 10px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
 
   /* Chart + grid layout */
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
@@ -728,6 +741,23 @@
     </div>
     <div class="tablewrap"><table id="un-table"></table></div>
   </section>
+  <!-- RATING SCALE (added 2026-11-08): what the RumX-based numbers mean -->
+  <section class="tab" data-tab="scale">
+    <div class="intro">Since <b>8 November 2026</b> every rating &mdash; yours and Candice&rsquo;s, for rums, whiskeys and cocktails &mdash;
+      uses a <b>RumX-based scale</b>: the same 0&ndash;10 spread RumX&rsquo;s community uses, so a number here means roughly what it
+      means on RumX. Older ratings were converted; the originals are kept in the workbook.</div>
+    <div class="info-sec"><h3>What the numbers mean</h3><div class="sc-bands" id="sc-bands"></div>
+      <div class="count" style="margin-top:6px">Counts = tastings in each band (Reed / Candice). Colours match the ratings everywhere in the app.</div></div>
+    <div class="grid2">
+      <div class="info-sec"><h3>RumX&rsquo;s community scale</h3><div id="sc-rumx"></div></div>
+      <div class="info-sec"><h3>Old rating &rarr; new</h3>
+        <div class="sc-conv"><label>Old rating <input type="number" id="sc-in" step="0.01" min="0" max="11.1" value="9.9"></label>
+          <span>&rarr;</span><b id="sc-out" class="rate"></b></div>
+        <div id="sc-table"></div></div>
+    </div>
+    <div class="card"><h3>The conversion curve</h3><canvas id="sc-chart" height="120"></canvas></div>
+    <div class="info-sec"><h3>How the scale was built</h3><div id="sc-how" class="count" style="font-size:13px;line-height:1.55"></div></div>
+  </section>
   <section class="tab" data-tab="wine">
     <div class="intro">Your wine cellar, from the <b>Wine Cellar</b> sheet. Drink-by years are estimates
       unless the back label gave one. Tap a wine for its details and tasting history.</div>
@@ -1105,7 +1135,7 @@ const TAB_ENTER = {};   // optional per-tab hook to refresh the KPI cards on ent
 
 const TABS = [["bar","Bar"],["info","Infographic"],["ing","Ingredients"],["rec","Recipes"],["hist","Drink History"],
               ["cons","Consumption"],["pour","Pour Costs"],["inv","Inventory & Costs"],["rums","Rums"],["hearts","Appleton Hearts"],["wine","Wine"],
-              ["fsq","Foursquare"],["unused","Unused"]];
+              ["fsq","Foursquare"],["unused","Unused"],["scale","Rating Scale"]];
 $("#nav").innerHTML = TABS.map((t,i)=>`<button data-t="${t[0]}" class="${i===0?'active':''}">${t[1]}</button>`).join("");
 $("#nav").addEventListener("click",e=>{
   const b=e.target.closest("button"); if(!b) return;
@@ -2714,6 +2744,76 @@ document.addEventListener("click", e=>{
     st.apply();
   });
 })();
+
+/* ========================= RATING SCALE ============================== */
+/* The scale adopted 8 Nov 2026. ANCHORS = (old rating, new rating) points; old ratings between two
+   anchors are placed proportionally on the line between them (same numbers as Tools/rerate_ratings.py
+   and the workbook's 'Rating Scale' sheet). Wrapped in try/catch so it can never break other tabs. */
+try { (function(){
+  const ANCHORS = [[0,0],[4,6.0],[8.93,7.0],[9.16,7.5],[9.29,7.6],[9.5,7.82],[9.588,8.0],[9.85,8.18],[9.9,8.4],
+                   [9.93,8.5],[9.962,8.6],[10,8.8],[11.1,9.4]];
+  const convertRaw = old => {                       // exact point on the line (used for the chart)
+    if(old >= ANCHORS[ANCHORS.length-1][0]) return ANCHORS[ANCHORS.length-1][1];
+    if(old <= 0) return 0;
+    for(let i=0;i<ANCHORS.length-1;i++){ const [x0,y0]=ANCHORS[i],[x1,y1]=ANCHORS[i+1];
+      if(old>=x0 && old<x1) return y0+(old-x0)/(x1-x0)*(y1-y0); }
+  };
+  const convert = old => Math.round(convertRaw(old)*10)/10;   // what gets saved: one decimal
+  // Bands: [low end, label, what it means, old-scale equivalent]
+  const BANDS = [[9.0,"Exceptional","Among the best ever — a bottle to tell people about.","old 10.4+"],
+                 [8.5,"Excellent","Top of the shelf; would happily buy again.","old ≈ 9.93–10.3"],
+                 [8.0,"Very good","Clearly better than most.","old ≈ 9.6–9.9"],
+                 [7.5,"Good","Enjoyable, happy to have again.","old ≈ 9.2–9.6"],
+                 [7.0,"Decent","Fine, nothing special.","old ≈ 8.9–9.2"],
+                 [6.0,"Fine / not for me","Drinkable but wouldn't choose it.","old ≈ 4–8.9"],
+                 [-1,"Didn't like it","Wouldn't have again.","old under 4"]];
+  const bandOf = v => BANDS.findIndex(b=>v>=b[0]);
+  const cnt = who => { const c=BANDS.map(()=>0); DATA.history.forEach(h=>{ const v=h[who]; if(v!=null) c[bandOf(v)]++; }); return c; };
+  const cr = cnt("reed"), cc = cnt("candice");
+  $("#sc-bands").innerHTML = BANDS.map((b,i)=>{
+    const top = i===0 ? "9.0+" : i===BANDS.length-1 ? "under 6" : `${b[0].toFixed(1)}–${(BANDS[i-1][0]-0.1).toFixed(1)}`;
+    const col = rateColor(i===BANDS.length-1 ? 5 : Math.max(b[0],6.5));
+    return `<div class="sc-band" style="border-left-color:${col}"><div class="n" style="color:${col}">${top}</div>
+      <div class="l">${b[1]}</div><div class="d">${b[2]}</div><div class="c">${b[3]} · ${cr[i]} / ${cc[i]}</div></div>`;
+  }).join("");
+  // RumX's own community bands (their score is the median member rating, 0–10)
+  const RX = [["9.0–10.0","Excellent"],["8.0–8.9","Very good"],["7.0–7.9","Good"],["6.0–6.9","Pleasant"],["5.0–5.9","Average"],
+              ["4.0–4.9","Drinkable"],["3.0–3.9","Poor"],["2.0–2.9","Very poor"],["1.0–1.9","Unpleasant"],["0.1–0.9","Inedible"]];
+  $("#sc-rumx").innerHTML = `<table class="sc"><tr><th>Score</th><th>RumX calls it</th></tr>${
+    RX.map(r=>`<tr><td><b style="color:${rateColor(parseFloat(r[0]))}">${r[0]}</b></td><td>${r[1]}</td></tr>`).join("")}</table>
+    <div class="count" style="margin-top:6px">A rum's RumX score is the median of its members' ratings (shown once it has 4+).
+    Most well-reviewed rums land between 7 and 9; the best top out around 9.4.</div>`;
+  // Converter + table
+  const show = () => { const v=parseFloat($("#sc-in").value); const n = isNaN(v)? null : convert(v);
+    $("#sc-out").textContent = n==null ? "" : n.toFixed(1); $("#sc-out").style.color = n==null ? "" : rateColor(n); };
+  $("#sc-in").oninput = show; show();
+  const OLD = [11.1,11,10.5,10,9.95,9.9,9.8,9.6,9.5,9.2,9.0,8.5,8,7,6,5,4];
+  $("#sc-table").innerHTML = `<table class="sc"><tr><th>Old</th><th>New</th><th>Old</th><th>New</th></tr>${
+    Array.from({length:Math.ceil(OLD.length/2)},(_,k)=>{ const a=OLD[k], b=OLD[k+Math.ceil(OLD.length/2)];
+      const cell = v => v==null ? "<td></td><td></td>" : `<td>${v}</td><td><b style="color:${rateColor(convert(v))}">${convert(v).toFixed(1)}</b></td>`;
+      return `<tr>${cell(a)}${cell(b)}</tr>`; }).join("")}</table>`;
+  // Curve chart (old on x, new on y)
+  if (typeof Chart !== "undefined") {
+    const pts = []; for(let x=4; x<=11.1001; x+=0.05) pts.push({x:Math.round(x*100)/100, y:convertRaw(x)});
+    new Chart($("#sc-chart"),{type:"line",data:{datasets:[
+        {label:"New rating",data:pts,borderColor:"#38bdf8",backgroundColor:"#38bdf8",pointRadius:0,tension:0},
+        {label:"Anchor points",data:ANCHORS.slice(1).map(a=>({x:a[0],y:a[1]})),showLine:false,pointRadius:4,borderColor:"#f472b6",backgroundColor:"#f472b6"}]},
+      options:{responsive:true,parsing:false,plugins:{legend:{labels:{color:"#94a3b8"}}},
+        scales:{x:{type:"linear",min:4,max:11.2,title:{display:true,text:"Old rating",color:"#94a3b8"},ticks:{color:"#94a3b8"},grid:{color:"#1e293b"}},
+                y:{min:5.5,max:9.6,title:{display:true,text:"New rating",color:"#94a3b8"},ticks:{color:"#94a3b8"},grid:{color:"#1e293b"}}}}});
+  }
+  $("#sc-how").innerHTML = `
+    <p><b>Why:</b> the old ratings were packed into 9–10 (median 9.5, a third at 9.9+), so small decimals carried big meaning and
+      the numbers couldn't be compared with anyone else's. RumX's community spreads the same rums across roughly 6–9.</p>
+    <p><b>How:</b> 84 rums had both a Reed rating and a RumX community score. The new curve keeps Reed's order but borrows RumX's
+      spacing: at each 10th percentile of Reed's ratings it takes RumX's score at the same percentile, and joins those points
+      with straight lines. Old ratings above 10 run evenly up to <b>9.4</b> — the highest score any well-reviewed rum had in
+      the RumX sample (Velier Caroni 39th Release, 237 ratings).</p>
+    <p><b>Who:</b> Candice's ratings use the same curve — on the 445 drinks you both rated, her scores average the same as Reed's.
+      Whiskeys and cocktails use it too; it translates scoring habits, it isn't a RumX score for those drinks.</p>
+    <p><b>Where it lives:</b> new ratings go straight into Rating Reed / Rating Candice on this scale; the converted originals sit in
+      "Rating Reed (original)" and "Rating Candice (original)". The workbook's 'Rating Scale' sheet has the same tables.</p>`;
+})(); } catch (err) { console.error("Rating Scale tab:", err); }
 
 /* ========================= UNUSED ==================================== */
 (function(){
