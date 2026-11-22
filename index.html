@@ -288,6 +288,18 @@
   .gh-stat{color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
   @media(max-width:520px){.gh-row{grid-template-columns:38px minmax(0,1fr);}.gh-stat{grid-column:2;text-align:left}}
 
+  .rr-img{float:right;width:96px;max-height:170px;object-fit:contain;margin:0 0 8px 12px;border-radius:8px}
+  .rr-sec::after,.hz-rel::after{content:"";display:block;clear:both}
+  .rr-thumb{float:right;width:46px;height:70px;object-fit:contain;margin:0 0 4px 10px;border-radius:6px;border:none !important;cursor:pointer}
+  .rr-gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin:8px 0 10px}
+  .rr-gal a{display:block;background:var(--panel2);border:1px solid var(--line);border-radius:8px;overflow:hidden;
+            color:var(--text);text-decoration:none;font-size:11px;line-height:1.35}
+  .rr-gal a:hover{border-color:var(--accent)}
+  .rr-gal img{display:block;width:100%;aspect-ratio:3/4;object-fit:cover}
+  .rr-gal .c{padding:5px 7px}
+  .rr-gal .c b{display:block;font-size:11.5px}
+  .rr-gal .c span{color:var(--muted)}
+
   /* ---- Appleton Hearts tab --------------------------------------------- */
   .hz-verdict{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:0 0 16px;max-width:1100px}
   .hz-verdict p{margin:0 0 8px;font-size:14px}
@@ -2646,12 +2658,15 @@ function rrSection(rel){
   if(rel.rumx_url) srcs.push(`<a href="${esc(rel.rumx_url)}" target="_blank" rel="noopener">${esc(rumx || "RumX page")} &#8599;</a>`);
   return `<div class="msec rr-sec"><h4>What&rsquo;s in the bottle${rel.confidence
             ? ` <span class="rr-conf" title="How well the sources agree">${esc(rel.confidence)} confidence</span>` : ""}</h4>
+    ${rel.image ? `<a href="${rrAsset(rel.image)}" target="_blank" rel="noopener"><img class="rr-img" src="${rrAsset(rel.image)}" alt="${esc(rel.name)}" loading="lazy"></a>` : ""}
     ${rel.summary ? `<div class="rr-sum">${esc(rel.summary)}</div>` : ""}
     <div class="rr-facts">${facts}</div>
     ${marks}
     ${rel.tasting ? `<div class="rr-note"><b>Commonly noted:</b> ${esc(rel.tasting)}</div>` : ""}
     ${rumx && !rel.rumx_url ? `<div class="rr-note">${rumx}</div>` : ""}
     ${rel.uncertain ? `<div class="rr-note">&#9888;&#65039; <b>Not fully confirmed:</b> ${esc(rel.uncertain)}</div>` : ""}
+    ${rrGalleryHtml(rel)}
+    ${rel.pdf ? `<a class="rr-pdf" href="${rrAsset(rel.pdf)}" target="_blank" rel="noopener">&#128196; Open the tech sheet (PDF) &#8599;</a>` : ""}
     ${rel.alt_recipe ? `<div class="rr-alt"><b>Unofficial chart says:</b> ${esc(rel.alt_recipe)}</div>` : ""}
     ${rrSpecHtml(rel)}
     ${srcs.length ? `<div class="rr-src">Sources: ${srcs.join("")}</div>` : ""}
@@ -2666,6 +2681,27 @@ function rrSection(rel){
 function rrPdfHref(spec){
   const isApp = !!document.querySelector('link[rel="manifest"]');
   return isApp ? "docs/" + encodeURIComponent(spec.pdf_web) : encodeURIComponent(spec.pdf_local);
+}
+
+// Path to a file in CocktailsWeb/docs (pictures and tech sheets). The phone
+// app is served from inside CocktailsWeb, so it uses "docs/..."; the desktop
+// dashboard sits one folder up, in Cocktails. Each part of the path is
+// encoded so names with spaces or "#" still work.
+function rrAsset(p){
+  const isApp = !!document.querySelector('link[rel="manifest"]');
+  return (isApp ? "docs/" : "CocktailsWeb/docs/") + String(p).split("/").map(encodeURIComponent).join("/");
+}
+
+// Gallery of single casks (used by the Trelawny Endemic Birds series)
+function rrGalleryHtml(rel){
+  const g = rel.gallery || [];
+  if(!g.length) return "";
+  return `<h5 style="margin:12px 0 2px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--gold)">
+      The casks (${g.length})</h5>
+    <div class="rr-gal">${g.map(x => `<a href="${rrAsset(x.image)}" target="_blank" rel="noopener">
+        <img src="${rrAsset(x.image)}" alt="${esc(x.title)}" loading="lazy">
+        <div class="c"><b>${esc(x.title)}</b>Cask #${esc(String(x.cask))} &middot; ${esc(x.mark)} ${esc(String(x.year))} (${x.age} yr)<br>
+          <span>${x.bottles} bottles &middot; ${x.abv}% &middot; for ${esc(x.for)}</span></div></a>`).join("")}</div>`;
 }
 
 // "Official spec sheet" block: Hampden's own production facts and tasting notes
@@ -2693,7 +2729,6 @@ function rrSpecHtml(rel){
     ${s.description ? `<div class="rr-sum" style="font-size:12.5px">${esc(s.description)}</div>` : ""}
     ${note("Profile", s.profile)}${note("Colour", s.colour)}${note("Nose", s.nose)}${note("Palate", s.palate)}${note("Finish", s.finish)}
     ${radar}
-    ${s.pdf_local ? `<a class="rr-pdf" href="${rrPdfHref(s)}" target="_blank" rel="noopener">&#128196; Open the original PDF &#8599;</a>` : ""}
   </div>`;
 }
 
@@ -2811,6 +2846,7 @@ function rrCollectionTab(key, tabKey, rootSel, emoji){
             dlink(b.ingredient) + (b.amt != null && b.amt <= 1 ? ` (${Math.round(b.amt * 100)}% left)` : "")).join(", ")}${
             x.mineAvg != null ? ` &middot; your rating <b>${fmt(x.mineAvg)}</b>${x.mineN > 1 ? ` (${x.mineN} tastings)` : ""}` : " &middot; not rated yet"}</div>` : "";
       return `<div class="hz-rel">
+        ${r.image ? `<img class="rr-thumb rellink" data-rel="${esc(r.id)}" src="${rrAsset(r.image)}" alt="" loading="lazy">` : ""}
         <div class="top"><span class="rellink" data-rel="${esc(r.id)}">${esc(r.name)}</span>${badge(x)}</div>
         ${spec ? `<div class="spec">${spec}</div>` : ""}
         ${chips ? `<div>${chips}</div>` : ""}
