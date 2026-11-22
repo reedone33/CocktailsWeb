@@ -300,6 +300,23 @@
   .rr-gal .c b{display:block;font-size:11.5px}
   .rr-gal .c span{color:var(--muted)}
 
+  /* ---- In-app document viewer (phone app) ---- */
+  #doc-viewer{position:fixed;inset:0;z-index:1000;background:#0b1120;display:flex;flex-direction:column}
+  #doc-viewer .dv-bar{display:flex;align-items:center;gap:10px;background:var(--panel);border-bottom:1px solid var(--line);
+         padding:calc(env(safe-area-inset-top, 0px) + 10px) 12px 10px}
+  #doc-viewer .dv-close{background:var(--accent);color:#0f172a;border:none;border-radius:999px;padding:9px 16px;
+         font-weight:700;font-size:15px;cursor:pointer;flex:0 0 auto}
+  #doc-viewer .dv-title{flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #doc-viewer .dv-share{background:none;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:7px 10px;
+         font-size:12.5px;cursor:pointer;flex:0 0 auto}
+  #doc-viewer .dv-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:10px 10px 90px}
+  #doc-viewer .dv-body img{display:block;width:100%;max-width:900px;margin:0 auto 10px;border-radius:6px;background:#fff}
+  #doc-viewer .dv-body img.zoom{width:auto;max-width:none}
+  #doc-viewer .dv-hint{color:var(--muted);font-size:11.5px;text-align:center;margin:0 0 8px}
+  #doc-viewer .dv-float{position:fixed;left:50%;transform:translateX(-50%);z-index:1001;
+         bottom:calc(env(safe-area-inset-bottom, 0px) + 16px);background:var(--accent);color:#0f172a;border:none;
+         border-radius:999px;padding:12px 26px;font-weight:700;font-size:15px;box-shadow:0 6px 20px rgba(0,0,0,.5);cursor:pointer}
+
   /* ---- Appleton Hearts tab --------------------------------------------- */
   .hz-verdict{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:0 0 16px;max-width:1100px}
   .hz-verdict p{margin:0 0 8px;font-size:14px}
@@ -2658,7 +2675,7 @@ function rrSection(rel){
   if(rel.rumx_url) srcs.push(`<a href="${esc(rel.rumx_url)}" target="_blank" rel="noopener">${esc(rumx || "RumX page")} &#8599;</a>`);
   return `<div class="msec rr-sec"><h4>What&rsquo;s in the bottle${rel.confidence
             ? ` <span class="rr-conf" title="How well the sources agree">${esc(rel.confidence)} confidence</span>` : ""}</h4>
-    ${rel.image ? `<a href="${rrAsset(rel.image)}" target="_blank" rel="noopener"><img class="rr-img" src="${rrAsset(rel.image)}" alt="${esc(rel.name)}" loading="lazy"></a>` : ""}
+    ${rel.image ? `<a class="rr-view" data-title="${esc(rel.name)}" href="${rrAsset(rel.image)}" target="_blank" rel="noopener"><img class="rr-img" src="${rrAsset(rel.image)}" alt="${esc(rel.name)}" loading="lazy"></a>` : ""}
     ${rel.summary ? `<div class="rr-sum">${esc(rel.summary)}</div>` : ""}
     <div class="rr-facts">${facts}</div>
     ${marks}
@@ -2666,7 +2683,7 @@ function rrSection(rel){
     ${rumx && !rel.rumx_url ? `<div class="rr-note">${rumx}</div>` : ""}
     ${rel.uncertain ? `<div class="rr-note">&#9888;&#65039; <b>Not fully confirmed:</b> ${esc(rel.uncertain)}</div>` : ""}
     ${rrGalleryHtml(rel)}
-    ${rel.pdf ? `<a class="rr-pdf" href="${rrAsset(rel.pdf)}" target="_blank" rel="noopener">&#128196; Open the tech sheet (PDF) &#8599;</a>` : ""}
+    ${rel.pdf ? `<a class="rr-pdf rr-view" data-title="${esc(rel.name)}" data-pages="${esc((rel.pdf_pages || []).join("|"))}" href="${rrAsset(rel.pdf)}" target="_blank" rel="noopener">&#128196; Open the tech sheet (PDF) &#8599;</a>` : ""}
     ${rel.alt_recipe ? `<div class="rr-alt"><b>Unofficial chart says:</b> ${esc(rel.alt_recipe)}</div>` : ""}
     ${rrSpecHtml(rel)}
     ${srcs.length ? `<div class="rr-src">Sources: ${srcs.join("")}</div>` : ""}
@@ -2692,13 +2709,67 @@ function rrAsset(p){
   return (isApp ? "docs/" : "CocktailsWeb/docs/") + String(p).split("/").map(encodeURIComponent).join("/");
 }
 
+/* ---- In-app document viewer --------------------------------------------
+   The installed phone app has no browser toolbar, so a PDF or picture opened
+   the normal way fills the screen with no way back. In the app, tech sheets
+   and pictures open here instead, with Close at the top and bottom. On the
+   desktop dashboard links keep opening in a new tab as usual.            */
+function rrIsApp(){ return !!document.querySelector('link[rel="manifest"]'); }
+
+function openDocViewer(title, images, original){
+  closeDocViewer();                                     // never stack two viewers
+  const v = document.createElement("div");
+  v.id = "doc-viewer";
+  v.setAttribute("role", "dialog");
+  v.setAttribute("aria-label", title || "Document");
+  const canShare = !!(navigator.share && original);
+  v.innerHTML = `
+    <div class="dv-bar">
+      <button class="dv-close" type="button">&#10005; Close</button>
+      <div class="dv-title">${esc(title || "")}</div>
+      ${canShare ? `<button class="dv-share" type="button" title="Open the original PDF in Files, Books or Safari">Share&hellip;</button>` : ""}
+    </div>
+    <div class="dv-body">
+      ${images.length > 0 ? `<div class="dv-hint">Tap a page to zoom in; tap again to fit the screen.</div>` : ""}
+      ${images.map((src, i) => `<img src="${src}" alt="${esc(title || "")} page ${i + 1}">`).join("")}
+    </div>
+    <button class="dv-float" type="button">&#10005; Close</button>`;
+  document.body.appendChild(v);
+  document.body.style.overflow = "hidden";              // stop the page behind from scrolling
+  v.querySelectorAll(".dv-close, .dv-float").forEach(b => b.onclick = () => history.state && history.state.docViewer ? history.back() : closeDocViewer());
+  v.querySelectorAll(".dv-body img").forEach(img => img.onclick = () => img.classList.toggle("zoom"));
+  const sh = v.querySelector(".dv-share");
+  if(sh) sh.onclick = () => navigator.share({ title: title || "Tech sheet", url: new URL(original, location.href).href }).catch(() => {});
+  // A history entry means a swipe-back or Android Back button also closes it
+  try { history.pushState({ docViewer: true }, ""); } catch(_) {}
+}
+function closeDocViewer(){
+  const v = document.getElementById("doc-viewer");
+  if(v){ v.remove(); document.body.style.overflow = ""; }
+}
+window.addEventListener("popstate", () => closeDocViewer());
+document.addEventListener("keydown", e => { if(e.key === "Escape") closeDocViewer(); });
+
+// In the app, tech-sheet and picture links open the viewer instead of leaving
+// the app. Runs in the capture phase so it wins over the other tap handlers.
+document.addEventListener("click", e => {
+  const a = e.target.closest("a.rr-view");
+  if(!a || !rrIsApp()) return;
+  e.preventDefault(); e.stopPropagation();
+  const href = a.getAttribute("href");
+  const isPdf = /\.pdf($|\?)/i.test(href);
+  const pages = (a.dataset.pages || "").split("|").filter(Boolean).map(rrAsset);
+  if(isPdf && !pages.length){ window.open(href, "_blank"); return; }   // no page images: fall back
+  openDocViewer(a.dataset.title || "", isPdf ? pages : [href], isPdf ? href : null);
+}, true);
+
 // Gallery of single casks (used by the Trelawny Endemic Birds series)
 function rrGalleryHtml(rel){
   const g = rel.gallery || [];
   if(!g.length) return "";
   return `<h5 style="margin:12px 0 2px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--gold)">
       The casks (${g.length})</h5>
-    <div class="rr-gal">${g.map(x => `<a href="${rrAsset(x.image)}" target="_blank" rel="noopener">
+    <div class="rr-gal">${g.map(x => `<a class="rr-view" data-title="${esc(x.title)}, cask #${esc(String(x.cask))}" href="${rrAsset(x.image)}" target="_blank" rel="noopener">
         <img src="${rrAsset(x.image)}" alt="${esc(x.title)}" loading="lazy">
         <div class="c"><b>${esc(x.title)}</b>Cask #${esc(String(x.cask))} &middot; ${esc(x.mark)} ${esc(String(x.year))} (${x.age} yr)<br>
           <span>${x.bottles} bottles &middot; ${x.abv}% &middot; for ${esc(x.for)}</span></div></a>`).join("")}</div>`;
