@@ -250,6 +250,29 @@
   .vs .p .nm{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
   .vs .mid{font-size:13px;color:var(--muted);line-height:1.4}
 
+  /* ---- Rum release reference: card section + Hampden / El Dorado tabs ---- */
+  .rellink{color:var(--accent);cursor:pointer;border-bottom:1px dotted rgba(56,189,248,.5)}
+  .rellink:hover{color:var(--accent2)}
+  .rr-sum{font-size:13px;line-height:1.5;margin:0 0 10px}
+  .rr-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:4px 16px;font-size:12.5px;margin-bottom:10px}
+  .rr-facts .k{color:var(--muted);display:inline-block;min-width:76px}
+  .rr-marks{width:100%;border-collapse:collapse;font-size:12px;margin:4px 0 10px}
+  .rr-marks th,.rr-marks td{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left}
+  .rr-marks th{color:var(--muted);font-weight:600}
+  .rr-note{font-size:12px;color:var(--muted);margin:6px 0;line-height:1.45}
+  .rr-src{font-size:12px;margin-top:6px;line-height:1.8}
+  .rr-src a{color:var(--accent);margin-right:10px;white-space:nowrap}
+  .rr-go{margin-top:10px;background:var(--panel2);border:1px solid var(--line);color:var(--text);
+         padding:6px 12px;border-radius:8px;font-size:12.5px;cursor:pointer}
+  .rr-go:hover{border-color:var(--accent)}
+  .rr-conf{font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:1px 7px;border-radius:999px;
+           border:1px solid var(--line);color:var(--muted);margin-left:6px;font-weight:600}
+  .rr-chip{display:inline-block;font-size:11px;padding:1px 7px;border-radius:6px;background:var(--panel2);
+           border:1px solid var(--line);margin:0 4px 4px 0}
+  .rr-gloss{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:8px;margin:8px 0 18px;max-width:1100px}
+  .rr-gloss div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:12.5px;line-height:1.45}
+  .rr-gloss b{color:var(--gold)}
+
   /* ---- Appleton Hearts tab --------------------------------------------- */
   .hz-verdict{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:0 0 16px;max-width:1100px}
   .hz-verdict p{margin:0 0 8px;font-size:14px}
@@ -708,6 +731,9 @@
     <div class="hz-src" id="hz-src"></div>
   </section>
 
+  <section class="tab" data-tab="hamp"><div id="hamp-root"></div></section>
+  <section class="tab" data-tab="eld"><div id="eld-root"></div></section>
+
   <section class="tab" data-tab="fsq">
     <div class="info" id="fsq-head"></div>
     <div class="controls">
@@ -1134,7 +1160,7 @@ renderKpis(globalCards);
 const TAB_ENTER = {};   // optional per-tab hook to refresh the KPI cards on entry
 
 const TABS = [["bar","Bar"],["info","Infographic"],["ing","Ingredients"],["rec","Recipes"],["hist","Drink History"],
-              ["cons","Consumption"],["pour","Pour Costs"],["inv","Inventory & Costs"],["rums","Rums"],["hearts","Appleton Hearts"],["wine","Wine"],
+              ["cons","Consumption"],["pour","Pour Costs"],["inv","Inventory & Costs"],["rums","Rums"],["hearts","Appleton Hearts"],["hamp","Hampden"],["eld","El Dorado"],["wine","Wine"],
               ["fsq","Foursquare"],["unused","Unused"],["scale","Rating Scale"]];
 $("#nav").innerHTML = TABS.map((t,i)=>`<button data-t="${t[0]}" class="${i===0?'active':''}">${t[1]}</button>`).join("");
 $("#nav").addEventListener("click",e=>{
@@ -2099,6 +2125,11 @@ function openDrink(name){
 
   const cat = rec?.category || bott?.type || "";
 
+  // Hampden / El Dorado / Appleton Hearts / Foursquare bottles: the researched
+  // facts about this exact release (see RUM RELEASE REFERENCE further down).
+  const relObj  = bott ? releaseFor(name) : null;
+  const relHtml = relObj ? rrSection(relObj) : "";
+
   // Cocktails get a photo of the drink (by its generic name); neat pours get
   // a picture of the bottle instead.
   const NEAT = new Set(["Rum","Whiskey","Gin","Tequila","Vodka","Brandy","Cognac",
@@ -2121,7 +2152,7 @@ function openDrink(name){
     <div class="mbody">
       ${imgSlot}
       <div class="mstats">${stats}</div>
-      ${who}${flavorHtml}${recipeHtml}${usageHtml}${prep}${recNotes}${notes}
+      ${who}${relHtml}${flavorHtml}${recipeHtml}${usageHtml}${prep}${recNotes}${notes}
     </div>`;
   $("#drink-modal").hidden = false;
 
@@ -2434,7 +2465,9 @@ document.addEventListener("click", e=>{
   st.afterApply = list => document.querySelectorAll("#hz-table tbody tr")
     .forEach((tr,i)=>tr.classList.toggle("hz-owned", !!(list[i] && list[i].status==="owned")));
   const cols = [
-    {key:"v",label:"Vintage",fmt:(v,r)=>`<b>${esc(r.label)}</b>`},
+    // tap the vintage to open what's in that release
+    {key:"v",label:"Vintage",fmt:(v,r)=>{ const rel = rrIndex().byId.get("hearts-"+r.v+"-"+r.age);
+       return `<b>${rel ? `<span class="rellink" data-rel="${rel.id}">${esc(r.label)}</span>` : esc(r.label)}</b>`; }},
     {key:"relN",label:"Released",fmt:(v,r)=>esc(r.rel)},
     {key:"btl",label:"Bottles",cls:"num",fmt:v=>v.toLocaleString("en-US")},
     {key:"rumx100",label:"RumX",cls:"num"},
@@ -2466,6 +2499,8 @@ document.addEventListener("click", e=>{
           <div class="top">Released ${esc(r.rel)} ${badge(r)}</div>
           <div class="spec">${r.age} years · ${r.abv}% ABV · ${r.btl.toLocaleString("en-US")} bottles</div>
           <div class="nt">${esc(r.note)}</div>
+          ${(() => { const rel = rrIndex().byId.get("hearts-"+r.v+"-"+r.age);
+                     return rel ? `<div class="hz-links" style="margin:-4px 0 8px"><span class="rellink" data-rel="${rel.id}">What&rsquo;s in the bottle &rarr;</span></div>` : ""; })()}
           ${r.bottle ? `<div class="hz-mine">Your bottle: ${dlink(r.bottle.ingredient)}${r.mine!=null?` · your rating <b>${fmt(r.mine)}</b>${r.mineN>1?` (${r.mineN} tastings)`:""}`:" · not rated yet"}</div>` : ""}
           ${r.sources.map(s=>`<div class="hz-row"><span class="l">${esc(s[0])}</span><span class="tr"><span class="f${s[2]==="critic"?" c":""}" style="width:${pct(s[1])}%;display:block"></span></span><span class="v">${Math.round(s[1])}</span></div>`).join("")}
           <div class="hz-row tot"><span class="l">Blended</span><span class="tr"><span class="f" style="width:${pct(r.blend)}%;display:block"></span></span><span class="v">${r.blend.toFixed(1)}</span></div>
@@ -2488,6 +2523,272 @@ document.addEventListener("click", e=>{
     [HEARTS.reduce((a,r)=>a+r.n,0),"RumX ratings"],
   ]);
 })();
+
+/* ===================== RUM RELEASE REFERENCE ==========================
+   Researched "what's in the bottle" facts for four collections, read from
+   Tools/rum_releases.json (it arrives here as DATA.rumReleases):
+     hampden  - Hampden Estate's own releases
+     eldorado - El Dorado (Demerara Distillers) own releases
+     hearts   - Appleton Estate Hearts Collection
+     ecs      - Foursquare Exceptional Cask Selection + Master Series
+   It is used three ways:
+     1. releaseFor(name) finds the release one of your bottles belongs to, so
+        that bottle's detail card can show a "What's in the bottle" section.
+     2. openRelease(id) opens a card for ANY release - including ones you
+        don't own - when you tap a release name on the collection tabs.
+     3. rrCollectionTab() draws the Hampden and El Dorado tabs.
+   These are all function declarations, which JavaScript makes available to
+   the whole page, so tabs drawn earlier in the page can use them safely.   */
+
+// Which tab shows each collection, and the name for its "see all" button
+function rrMeta(){
+  return {hampden:{tab:"hamp",label:"Hampden"}, eldorado:{tab:"eld",label:"El Dorado"},
+          hearts:{tab:"hearts",label:"Appleton Hearts"}, ecs:{tab:"fsq",label:"Foursquare"}};
+}
+
+// Build the lookup tables the first time anything needs them, then reuse them.
+function rrIndex(){
+  if(rrIndex.done) return rrIndex.done;
+  const byId = new Map();
+  const colls = DATA.rumReleases || {};
+  Object.entries(colls).forEach(([key, c]) => (c.releases || []).forEach(r => {
+    r._coll = key;                       // remember which collection it is in
+    // Hampden / El Dorado releases carry a pattern matching your bottle's name.
+    // A broken pattern must not break the app, so it is just skipped.
+    try { r._re = r.match ? new RegExp(r.match, "i") : null; } catch(_) { r._re = null; }
+    byId.set(r.id, r);
+  }));
+  rrIndex.done = {byId, colls, cache: new Map()};
+  return rrIndex.done;
+}
+
+// Foursquare names carry their release number: "ECS Mark XXVII" -> "ecs-xxvii",
+// "Master Series Edition No4" -> "ms-4".
+function rrEcsId(name){
+  const s = String(name || "");
+  const m = /ECS Mark ([IVXLC]+)\b/i.exec(s);
+  if(m) return "ecs-" + m[1].toLowerCase();
+  const ms = /master series edition\s*n[o°]?\.?\s*(\d+)/i.exec(s);
+  return ms ? "ms-" + ms[1] : null;
+}
+
+// The release a bottle (or drink) name belongs to, or null if none.
+function releaseFor(name){
+  const ix = rrIndex(), n = String(name || "");
+  if(ix.cache.has(n)) return ix.cache.get(n);
+  let hit = null;
+  // Foursquare: read the Mark / Master Series number straight from the name
+  if(/foursquare/i.test(n)){ const id = rrEcsId(n); hit = id ? (ix.byId.get(id) || null) : null; }
+  // Appleton Hearts: "Hearts Collection 1999 21 Year" -> vintage 1999, age 21
+  if(!hit){
+    const h = /hearts\s+collection\s+(\d{4})\s+(\d+)\s*y/i.exec(n);
+    if(h) hit = ix.byId.get("hearts-" + h[1] + "-" + h[2]) || null;
+  }
+  // Hampden and El Dorado: the researched name pattern for each release
+  if(!hit && /hampden|el dorado/i.test(n)){
+    for(const r of ix.byId.values()){
+      if((r._coll === "hampden" || r._coll === "eldorado") && r._re && r._re.test(n)){ hit = r; break; }
+    }
+  }
+  ix.cache.set(n, hit);
+  return hit;
+}
+
+// Your bottles of a release: every Ingredients row that maps to it,
+// finished ones included.
+function rrBottles(rel){
+  return DATA.ingredients.filter(i => releaseFor(i.ingredient) === rel);
+}
+
+// The "What's in the bottle" block shown on a detail card.
+function rrSection(rel){
+  const meta = rrMeta()[rel._coll] || {};
+  // one "label value" line, skipped when there is nothing to show
+  const f = (k, v) => (v == null || v === "") ? "" : `<div><span class="k">${k}</span> ${v}</div>`;
+  const facts = [
+    f("Released",  rel.release_year != null ? esc(String(rel.release_year)) : ""),
+    f("Distilled", esc(rel.distilled || "")),
+    f("Age",       esc(rel.age || "")),
+    f("Strength",  rel.abv != null ? `${rel.abv}% ABV &middot; ${Math.round(rel.abv * 20) / 10} proof` : ""),
+    f("Bottles",   rel.bottles != null ? Number(rel.bottles).toLocaleString("en-US") : ""),
+    f("Still",     esc(rel.still || "")),
+    f(rel._coll === "hearts" ? "Congeners" : "Esters", esc(rel.esters || "")),
+    f("Casks",     esc(rel.casks || "")),
+    f("Finish",    esc(rel.finish || "")),
+    f("Matured",   esc(rel.maturation || "")),
+    f("Sugar",     esc(rel.sugar || "")),
+    f("US / EU",   esc(rel.us_eu || "")),
+  ].join("");
+  // the blend recipe, when the distillery (or a reliable source) published it
+  const marks = (rel.marks || []).length
+    ? `<table class="rr-marks"><thead><tr><th>Mark / still</th><th>Share</th><th>Distilled</th><th>Age</th><th>Esters</th></tr></thead><tbody>${
+        rel.marks.map(m => `<tr><td><b>${esc(m.mark || "")}</b></td><td>${m.pct != null ? m.pct + "%" : ""}</td>` +
+          `<td>${esc(m.year != null ? String(m.year) : "")}</td><td>${esc(m.age || "")}</td><td>${esc(m.esters || "")}</td></tr>`).join("")
+      }</tbody></table>` : "";
+  const rumx = rel.rumx != null ? `RumX ${fmt(rel.rumx, 1)}${rel.rumx_n ? ` (${rel.rumx_n} ratings)` : ""}` : "";
+  const srcs = (rel.sources || []).filter(s => s && s.url)
+    .map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.label || "source")} &#8599;</a>`);
+  if(rel.rumx_url) srcs.push(`<a href="${esc(rel.rumx_url)}" target="_blank" rel="noopener">${esc(rumx || "RumX page")} &#8599;</a>`);
+  return `<div class="msec rr-sec"><h4>What&rsquo;s in the bottle${rel.confidence
+            ? ` <span class="rr-conf" title="How well the sources agree">${esc(rel.confidence)} confidence</span>` : ""}</h4>
+    ${rel.summary ? `<div class="rr-sum">${esc(rel.summary)}</div>` : ""}
+    <div class="rr-facts">${facts}</div>
+    ${marks}
+    ${rel.tasting ? `<div class="rr-note"><b>Commonly noted:</b> ${esc(rel.tasting)}</div>` : ""}
+    ${rumx && !rel.rumx_url ? `<div class="rr-note">${rumx}</div>` : ""}
+    ${rel.uncertain ? `<div class="rr-note">&#9888;&#65039; <b>Not fully confirmed:</b> ${esc(rel.uncertain)}</div>` : ""}
+    ${srcs.length ? `<div class="rr-src">Sources: ${srcs.join("")}</div>` : ""}
+    ${meta.tab ? `<button class="rr-go" data-t="${meta.tab}">See all ${esc(meta.label)} releases &rarr;</button>` : ""}
+  </div>`;
+}
+
+// Open a release's card. If you own it, show your full bottle card (which
+// includes the release section); otherwise a card with just the release facts.
+function openRelease(id){
+  const ix = rrIndex(), rel = ix.byId.get(id);
+  if(!rel) return;
+  const mine = rrBottles(rel);
+  if(mine.length){ openDrink(mine[0].ingredient); return; }
+  const c = ix.colls[rel._coll] || {};
+  $("#drink-card").innerHTML = `
+    <div class="mhead">
+      <button class="mclose" aria-label="Close">&times;</button>
+      <h3>${esc(rel.name)}</h3>
+      <div class="sub">${esc(c.title || "")} &middot; not in your bar</div>
+    </div>
+    <div class="mbody">${rrSection(rel)}</div>`;
+  $("#drink-modal").hidden = false;
+}
+
+// Taps: a release name opens its card; "See all ... releases" jumps to that tab.
+document.addEventListener("click", e => {
+  const r = e.target.closest(".rellink");
+  if(r){ e.preventDefault(); openRelease(r.dataset.rel); return; }
+  const g = e.target.closest(".rr-go");
+  if(g){
+    closeDrink();
+    const b = document.querySelector(`#nav button[data-t="${g.dataset.t}"]`);
+    if(b) b.click();
+  }
+});
+
+/* ---- Hampden and El Dorado tabs ------------------------------------------
+   Every release in the collection, grouped by series. "Owned" / "Finished"
+   comes live from your Ingredients sheet; your rating from Drink_History.  */
+function rrCollectionTab(key, tabKey, rootSel, emoji){
+  const root = $(rootSel);
+  try {
+    const c = rrIndex().colls[key];
+    if(!c || !(c.releases || []).length){
+      root.innerHTML = `<div class="intro">No release data yet &mdash; Tools/rum_releases.json is missing.</div>`;
+      return;
+    }
+
+    // Attach your bottles, what's left, and your rating to every release
+    const rows = c.releases.map(r => {
+      const mine  = rrBottles(r);
+      const open  = mine.filter(b => b.amt !== 0);
+      const rated = mine.find(b => b.avgRating != null);    // same name = same rating, so take one
+      return {r, mine, open,
+              status: !mine.length ? "" : (open.length ? "owned" : "finished"),
+              mineAvg: rated ? rated.avgRating : null, mineN: rated ? rated.nRatings : 0};
+    });
+    const owned  = rows.filter(x => x.status);
+    const rated  = owned.filter(x => x.mineAvg != null);
+    const avg    = rated.length ? rated.reduce((s, x) => s + x.mineAvg, 0) / rated.length : null;
+    const bottlesOpen = rows.reduce((s, x) => s + x.open.length, 0);
+
+    root.innerHTML = `
+      <h2 class="big">${emoji} ${esc(c.title)}</h2>
+      <div class="intro">${esc(c.intro || "")} Releases you have are marked
+        <span class="hz-badge own">Owned</span> (live from your Ingredients). Tap any release for what&rsquo;s in the bottle.
+        Research as of ${esc(c.asof || "")}; anything not fully confirmed is flagged on the card.</div>
+      <div class="hero">
+        <div class="tile t-teal"><span class="emoji">&#127991;</span><div class="big">${owned.length}<span style="font-size:18px;opacity:.75"> / ${rows.length}</span></div><div class="lbl">Releases owned</div></div>
+        <div class="tile t-sky"><span class="emoji">&#127862;</span><div class="big">${bottlesOpen}</div><div class="lbl">Bottles open</div></div>
+        <div class="tile t-gold"><span class="emoji">&#11088;</span><div class="big">${avg != null ? avg.toFixed(2) : "&mdash;"}</div><div class="lbl">Your average rating</div></div>
+      </div>
+      <div class="controls">
+        <input type="search" id="${tabKey}-q" placeholder="Search name, mark, cask&hellip;">
+        <div class="chips" id="${tabKey}-scope"></div>
+        <span class="count" id="${tabKey}-count"></span>
+      </div>
+      <div class="hz-cards" id="${tabKey}-cards"></div>
+      ${(c.glossary || []).length ? `<h3 style="margin:24px 0 4px">Marks &amp; stills</h3>
+        <div class="rr-gloss">${c.glossary.map(g => `<div><b>${esc(g.term)}</b>${g.esters ? ` &middot; ${esc(g.esters)}` : ""}<br>${esc(g.desc || "")}</div>`).join("")}</div>` : ""}`;
+
+    let scope = "all";
+    $("#" + tabKey + "-scope").innerHTML = [["all","All"],["own","Owned"],["not","Not owned"]]
+      .map(([k, l]) => `<button class="chip${k === "all" ? " active" : ""}" data-s="${k}">${l}</button>`).join("");
+
+    const badge = x => x.status === "owned" ? ' <span class="hz-badge own">Owned</span>'
+                     : x.status === "finished" ? ' <span class="hz-badge gone">Finished</span>' : "";
+
+    // One release inside a series card
+    const relHtml = x => {
+      const r = x.r;
+      const spec = [r.release_year != null ? "Released " + r.release_year : "", r.age || "",
+                    r.abv != null ? r.abv + "% ABV" : "",
+                    r.bottles != null ? Number(r.bottles).toLocaleString("en-US") + " bottles" : ""]
+                   .filter(Boolean).map(esc).join(" &middot; ");
+      const chips = (r.marks || []).map(m => `<span class="rr-chip">${esc(m.mark || "")}${m.pct != null ? " " + m.pct + "%" : ""}${m.year != null ? " &middot; " + esc(String(m.year)) : ""}</span>`).join("");
+      const mine = x.mine.length
+        ? `<div class="hz-mine">Your bottle${x.mine.length > 1 ? "s" : ""}: ${x.mine.map(b =>
+            dlink(b.ingredient) + (b.amt != null && b.amt <= 1 ? ` (${Math.round(b.amt * 100)}% left)` : "")).join(", ")}${
+            x.mineAvg != null ? ` &middot; your rating <b>${fmt(x.mineAvg)}</b>${x.mineN > 1 ? ` (${x.mineN} tastings)` : ""}` : " &middot; not rated yet"}</div>` : "";
+      return `<div class="hz-rel">
+        <div class="top"><span class="rellink" data-rel="${esc(r.id)}">${esc(r.name)}</span>${badge(x)}</div>
+        ${spec ? `<div class="spec">${spec}</div>` : ""}
+        ${chips ? `<div>${chips}</div>` : ""}
+        ${r.summary ? `<div class="nt">${esc(r.summary)}</div>` : ""}
+        ${mine}
+      </div>`;
+    };
+
+    // Draw the cards for whatever the filter and search box allow
+    function render(){
+      const q = ($("#" + tabKey + "-q").value || "").toLowerCase();
+      const hay = x => [x.r.name, x.r.series, x.r.still, x.r.casks, x.r.finish, x.r.summary,
+                        (x.r.marks || []).map(m => m.mark).join(" ")].join(" ").toLowerCase();
+      const list = rows.filter(x => (scope === "all" || (scope === "own" ? !!x.status : !x.status))
+                                    && (!q || hay(x).includes(q)));
+      // group by series, keeping the order the series first appear in
+      const order = [], groups = {};
+      list.forEach(x => { const s = x.r.series || "Other"; if(!groups[s]){ groups[s] = []; order.push(s); } groups[s].push(x); });
+      $("#" + tabKey + "-count").textContent = list.length + " of " + rows.length + " releases";
+      $("#" + tabKey + "-cards").innerHTML = order.length ? order.map(s => {
+        const g = groups[s], n = g.filter(x => x.status).length;
+        return `<div class="hz-card${g.some(x => x.status === "owned") ? " owned" : ""}">
+          <h3>${esc(s)} <span class="ct">${g.length} release${g.length > 1 ? "s" : ""}${n ? ` &middot; ${n} yours` : ""}</span></h3>
+          ${g.map(relHtml).join("")}
+        </div>`;
+      }).join("") : `<div class="barEmpty" style="color:var(--muted)">Nothing matches.</div>`;
+    }
+
+    $("#" + tabKey + "-scope").addEventListener("click", e => {
+      const b = e.target.closest("button"); if(!b) return;
+      scope = b.dataset.s;
+      $("#" + tabKey + "-scope").querySelectorAll("button").forEach(x => x.classList.toggle("active", x === b));
+      render();
+    });
+    $("#" + tabKey + "-q").addEventListener("input", render);
+    render();
+
+    // KPI cards shown while this tab is open
+    TAB_ENTER[tabKey] = () => renderKpis([
+      [owned.length + " / " + rows.length, "Releases owned"],
+      [bottlesOpen, "Bottles open"],
+      [avg != null ? avg.toFixed(2) : "—", "Your avg rating"],
+      [(c.glossary || []).length, "Marks / stills"],
+    ]);
+  } catch (err) {
+    // One tab failing must not take the rest of the app down with it
+    root.innerHTML = `<div class="intro" style="color:#f87171">This tab could not be built: ${esc(String(err))}</div>`;
+    console.error(err);
+  }
+}
+rrCollectionTab("hampden",  "hamp", "#hamp-root", "&#127471;&#127474;");   // Jamaica flag
+rrCollectionTab("eldorado", "eld",  "#eld-root",  "&#127468;&#127486;");   // Guyana flag
 
 /* ========================= RECIPES ==================================== */
 (function(){
@@ -2688,7 +2989,11 @@ document.addEventListener("click", e=>{
     {key:"short",label:"Release",
      fmt:(v,r)=> (r.owned
         ? `<span class="drinklink" data-n="${esc(r.ingredient)}" title="${esc(r.ingredient)}">${esc(v)}</span>`
-        : `<span style="color:var(--muted)">${esc(v)}</span>`)
+        // not owned: open the release's own card (what's in the bottle)
+        : (() => { const rel = rrIndex().byId.get(r.isEcs ? "ecs-" + String(r.mark).toLowerCase()
+                                                          : rrEcsId(r.ingredient));
+                   return rel ? `<span class="rellink" data-rel="${esc(rel.id)}" style="opacity:.8">${esc(v)}</span>`
+                              : `<span style="color:var(--muted)">${esc(v)}</span>`; })())
        + (r.copies>1 ? ` <span class="pill" title="${r.copies} bottles of this release">&times;${r.copies}</span>` : "")
        + (r.owned ? (r.amt===0 ? ' <span class="hz-badge gone">Finished</span>' : ' <span class="hz-badge own">Owned</span>') : "")
        + (r.finish ? `<span class="fsq-sub">${esc(r.finish)}</span>` : "")},
