@@ -273,6 +273,21 @@
   .rr-gloss div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:12.5px;line-height:1.45}
   .rr-gloss b{color:var(--gold)}
 
+  .rr-spec{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line)}
+  .rr-spec h5{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--gold)}
+  .rr-spec .tn{font-size:12.5px;line-height:1.5;margin:4px 0}
+  .rr-spec .tn b{color:var(--text);display:inline-block;min-width:52px}
+  .rr-pdf{display:inline-block;margin-top:8px;color:var(--accent);font-size:12.5px;font-weight:600;text-decoration:none}
+  .rr-alt{font-size:12px;margin:6px 0;padding:6px 9px;border-left:3px solid var(--gold);background:var(--panel2);border-radius:4px;line-height:1.45}
+  .gh-chart{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:6px 0 16px;max-width:1100px}
+  .gh-chart h3{margin:0 0 4px;font-size:15px}
+  .gh-row{display:grid;grid-template-columns:44px minmax(0,1fr) 150px;gap:10px;align-items:center;margin:7px 0;font-size:12px}
+  .gh-bar{display:flex;height:24px;border-radius:6px;overflow:hidden;background:var(--panel2)}
+  .gh-bar span{display:flex;align-items:center;justify-content:center;color:#0f172a;font-weight:700;font-size:11px;
+               white-space:nowrap;overflow:hidden;border-right:1px solid rgba(15,23,42,.35)}
+  .gh-stat{color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+  @media(max-width:520px){.gh-row{grid-template-columns:38px minmax(0,1fr);}.gh-stat{grid-column:2;text-align:left}}
+
   /* ---- Appleton Hearts tab --------------------------------------------- */
   .hz-verdict{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:0 0 16px;max-width:1100px}
   .hz-verdict p{margin:0 0 8px;font-size:14px}
@@ -2637,8 +2652,48 @@ function rrSection(rel){
     ${rel.tasting ? `<div class="rr-note"><b>Commonly noted:</b> ${esc(rel.tasting)}</div>` : ""}
     ${rumx && !rel.rumx_url ? `<div class="rr-note">${rumx}</div>` : ""}
     ${rel.uncertain ? `<div class="rr-note">&#9888;&#65039; <b>Not fully confirmed:</b> ${esc(rel.uncertain)}</div>` : ""}
+    ${rel.alt_recipe ? `<div class="rr-alt"><b>Unofficial chart says:</b> ${esc(rel.alt_recipe)}</div>` : ""}
+    ${rrSpecHtml(rel)}
     ${srcs.length ? `<div class="rr-src">Sources: ${srcs.join("")}</div>` : ""}
     ${meta.tab ? `<button class="rr-go" data-t="${meta.tab}">See all ${esc(meta.label)} releases &rarr;</button>` : ""}
+  </div>`;
+}
+
+
+// Where the original spec-sheet PDFs live: the phone app carries copies in its
+// docs/ folder; the desktop dashboard sits next to the originals in Cocktails.
+// The phone app is the page with a web-app manifest, so that tells them apart.
+function rrPdfHref(spec){
+  const isApp = !!document.querySelector('link[rel="manifest"]');
+  return isApp ? "docs/" + encodeURIComponent(spec.pdf_web) : encodeURIComponent(spec.pdf_local);
+}
+
+// "Official spec sheet" block: Hampden's own production facts and tasting notes
+function rrSpecHtml(rel){
+  const s = rel.spec; if(!s) return "";
+  const prod = (s.production || []).map(p => `<div><span class="k">${esc(p[0])}</span> ${esc(p[1])}</div>`).join("");
+  const note = (k, v) => v ? `<div class="tn"><b>${k}</b> ${esc(v)}</div>` : "";
+  // optional five-point flavour chart (only the 2023 sheet has one), drawn as SVG
+  let radar = "";
+  if(s.radar){
+    const keys = Object.keys(s.radar), cx = 80, cy = 78, R = 56;
+    const pt = (i, v) => { const a = -Math.PI/2 + i*2*Math.PI/keys.length;
+                           return [cx + Math.cos(a)*R*v/5, cy + Math.sin(a)*R*v/5]; };
+    const ring = v => keys.map((_, i) => pt(i, v).join(",")).join(" ");
+    radar = `<svg viewBox="0 0 160 160" width="170" height="170" aria-label="Flavour profile" style="display:block;margin:6px 0">
+      ${[1,2,3,4,5].map(v => `<polygon points="${ring(v)}" fill="none" stroke="var(--line)" stroke-width="1"/>`).join("")}
+      <polygon points="${keys.map((k, i) => pt(i, s.radar[k]).join(",")).join(" ")}" fill="rgba(251,191,36,.18)" stroke="#fbbf24" stroke-width="2"/>
+      ${keys.map((k, i) => { const [x, y] = pt(i, 6.3);
+         return `<text x="${x}" y="${y + 3}" text-anchor="middle" font-size="10" fill="var(--muted)">${esc(k)}</text>`; }).join("")}
+    </svg><div class="rr-note" style="margin-top:-2px">Profile chart redrawn from the sheet (approximate).</div>`;
+  }
+  return `<div class="rr-spec"><h5>Official spec sheet &mdash; Hampden Estate</h5>
+    ${s.edition ? `<div class="rr-note" style="margin-top:0">${esc(s.edition)}</div>` : ""}
+    ${prod ? `<div class="rr-facts">${prod}</div>` : ""}
+    ${s.description ? `<div class="rr-sum" style="font-size:12.5px">${esc(s.description)}</div>` : ""}
+    ${note("Profile", s.profile)}${note("Colour", s.colour)}${note("Nose", s.nose)}${note("Palate", s.palate)}${note("Finish", s.finish)}
+    ${radar}
+    ${s.pdf_local ? `<a class="rr-pdf" href="${rrPdfHref(s)}" target="_blank" rel="noopener">&#128196; Open the original PDF &#8599;</a>` : ""}
   </div>`;
 }
 
@@ -2671,6 +2726,24 @@ document.addEventListener("click", e => {
     if(b) b.click();
   }
 });
+
+
+// Stacked-bar version of the unofficial Great House chart (Hampden tab only)
+function rrUnofficialChart(ch){
+  if(!ch || !(ch.rows || []).length) return "";
+  // one colour per mark, so the same mark looks the same in every year
+  const COL = {"OWH":"#93c5fd","<>H":"#f9a8d4","C<>H":"#f472b6","LFCH":"#86efac","HGML":"#fbbf24",
+               "LROK":"#a5b4fc","HLCF":"#fdba74","DOK":"#f87171"};
+  const rows = ch.rows.map(r => `<div class="gh-row">
+      <b>${r.year}</b>
+      <div class="gh-bar">${r.marks.map(m => `<span style="width:${m[1]}%;background:${COL[m[0]] || "#cbd5e1"}"
+          title="${esc(m[0])}: ${m[1]}%, ${m[2]} yrs, ~${m[3]} g/hLAA">${esc(m[0])} ${m[1]}%</span>`).join("")}</div>
+      <span class="gh-stat">${fmt(r.age, 1)} yrs &middot; ${Math.round(r.esters)} g &middot; ${r.abv}%</span>
+    </div>`).join("");
+  return `<div class="gh-chart"><h3>${esc(ch.title)} <span class="hz-badge few" style="margin-left:6px">Unofficial source</span></h3>
+    <div class="rr-note" style="margin-top:0">${esc(ch.source)} Right-hand column: blend average age &middot; esters (g/hLAA) &middot; ABV.
+      Hover or long-press a segment for that mark&rsquo;s age and esters.</div>${rows}</div>`;
+}
 
 /* ---- Hampden and El Dorado tabs ------------------------------------------
    Every release in the collection, grouped by series. "Owned" / "Finished"
@@ -2713,6 +2786,7 @@ function rrCollectionTab(key, tabKey, rootSel, emoji){
         <div class="chips" id="${tabKey}-scope"></div>
         <span class="count" id="${tabKey}-count"></span>
       </div>
+      ${rrUnofficialChart(c.unofficial_chart)}
       <div class="hz-cards" id="${tabKey}-cards"></div>
       ${(c.glossary || []).length ? `<h3 style="margin:24px 0 4px">Marks &amp; stills</h3>
         <div class="rr-gloss">${c.glossary.map(g => `<div><b>${esc(g.term)}</b>${g.esters ? ` &middot; ${esc(g.esters)}` : ""}<br>${esc(g.desc || "")}</div>`).join("")}</div>` : ""}`;
