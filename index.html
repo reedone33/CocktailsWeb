@@ -100,6 +100,27 @@
   .chip.active{background:var(--accent);color:#0f172a;border-color:var(--accent)}
   .rate{font-weight:700}
   /* Flavor tag chips (2026-11-08): colour = flavor family */
+  /* ---- Flavor-tag filter (added 2026-11-25): Ingredients tab + app's Bar tab ---- */
+  .tf{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .tf.tf-isopen{flex:1 1 100%}                  /* open: take a full row for the panel */
+  .tf-on{font-size:12.5px;padding:4px 9px;border-radius:999px;border:1px solid;cursor:pointer;
+         font-weight:700;font-family:inherit}
+  .tf-mode{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .tf-mode button{background:var(--panel);border:none;color:var(--muted);padding:6px 10px;
+                  font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+  .tf-mode button.on{background:var(--accent);color:#0f172a}
+  .tf-panel{flex:1 1 100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+            padding:12px;margin-top:2px}
+  .tf-panel input[type=search]{width:100%;background:var(--panel2);border:1px solid var(--line);
+            color:var(--text);border-radius:8px;padding:8px 10px;font-size:16px;outline:none}
+  .tf-hint{font-size:12px;color:var(--muted);margin:8px 0 2px;line-height:1.4}
+  .tf-list{display:flex;flex-wrap:wrap;gap:6px;max-height:300px;overflow:auto;margin-top:8px}
+  .tf-chip{font-size:12.5px;padding:4px 9px;border-radius:999px;border:1px solid;background:transparent;
+           cursor:pointer;font-family:inherit;line-height:1.3}
+  .tf-chip .n{opacity:.6;font-size:11px;margin-left:3px}
+  .tf-chip.on{font-weight:700}
+  .tf-more{background:none;border:none;color:var(--accent);font-size:12.5px;cursor:pointer;padding:4px}
+  .tag.tf-hit{box-shadow:0 0 0 1.5px currentColor;font-weight:700}   /* a tag your filter matched */
   .tags{display:inline-flex;flex-wrap:wrap;gap:3px;align-items:center;margin:1px 6px 1px 0}
   .tag{font-size:11px;line-height:16px;padding:0 7px;border-radius:999px;border:1px solid;white-space:nowrap}
   .tagstage{font-size:10px;font-weight:700;color:var(--muted);margin-right:1px}
@@ -710,6 +731,7 @@
        target="_blank" rel="noopener">&#128203; Bar Shelf Check
        <span>record amounts &amp; locations &rarr;</span></a>
     <div class="intro" id="bar-intro"></div>
+    <div class="controls"><div class="tf" id="bar-tags"></div></div>
     <div class="barGrid" id="bar-grid"></div>
     <div id="bar-list" hidden></div>
   </section>
@@ -743,6 +765,7 @@
     <div class="intro">Your bottle list with pour economics and the average rating each spirit earned in your history (replaces IngredientsRated). <b>On hand</b> hides empties; <b>Low</b> shows open bottles at 20% or less; <b>Empty</b> shows bottles at 0 remaining &mdash; together a restock list. In <b>Amt left</b>, <b>&asymp;</b> means estimated from drinks you made since your last check (hover over it on a computer for details) and <b>?</b> means never checked. The cards above update live as you filter.</div>
     <div class="controls">
       <input type="search" id="ing-q" placeholder="Search ingredient or brand&hellip;">
+      <div class="tf" id="ing-tags"></div>
       <div class="chips" id="ing-scope" title="Which bottles to show"></div>
       <div class="chips" id="ing-chips"></div>
       <select id="ing-type" title="More spirit types"></select>
@@ -1039,6 +1062,12 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
   stock.forEach(r => { (byType[r.type || "Other"] ||= []).push(r); });
   const types = Object.keys(byType).sort((a,b) => byType[b].length - byType[a].length);
 
+  // Flavor-tag filter (2026-11-25): when tags are chosen, the tile counts and
+  // the bottle lists only include bottles carrying them (your tags or RumX's).
+  const TF = makeTagFilter($("#bar-tags"), () => {
+    if ($("#bar-list").hidden) renderGrid(); else renderList();
+  });
+
   // Eight background tints, cycled through - straight from the iOS app.
   const TINTS = ["#291f38","#1a2933","#33211a","#1a2e24","#2e241a","#1a2133","#33192260","#242e1a"];
 
@@ -1078,9 +1107,18 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
   function renderGrid(){
     $("#bar-list").hidden = true;
     $("#bar-grid").hidden = false;
-    $("#bar-intro").innerHTML =
-      "<b>" + stock.length + "</b> bottles open across <b>" + types.length +
-      "</b> categories. Tap a category to see what&rsquo;s in it.";
+    // With flavor tags chosen, count only the bottles that carry them, and
+    // drop categories with no match.
+    const pool = stock.filter(TF.matches);
+    const groups = {};
+    pool.forEach(r => { (groups[r.type || "Other"] ||= []).push(r); });
+    const shownTypes = types.filter(t => groups[t]);
+    $("#bar-intro").innerHTML = TF.active()
+      ? "<b>" + pool.length + "</b> bottle" + (pool.length === 1 ? "" : "s") + " with <b>" +
+        esc(TF.summary()) + "</b>" + (pool.length ? ", across <b>" + shownTypes.length +
+        "</b> categor" + (shownTypes.length === 1 ? "y" : "ies") + "." : ".")
+      : "<b>" + stock.length + "</b> bottles open across <b>" + types.length +
+        "</b> categories. Tap a category to see what&rsquo;s in it.";
 
     const tile = (name, count, tint, iconPath) =>
       '<div class="barTile" role="button" tabindex="0" data-type="' + esc(name) + '" style="background:' + tint + '">' +
@@ -1091,11 +1129,13 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
         '<span class="tname">' + esc(name) + '</span>' +
       '</div>';
 
-    const lowN = stock.filter(r => r.low).length;
-    $("#bar-grid").innerHTML =
-      tile("All Spirits", stock.length, "#3d2e14", ICONS.wine) +
-      (lowN ? tile("Running Low", lowN, "#3a1d1d", ICONS.other) : "") +
-      types.map((t,i) => tile(t, byType[t].length, TINTS[i % TINTS.length], iconFor(t))).join("");
+    const lowN = pool.filter(r => r.low).length;
+    $("#bar-grid").innerHTML = !pool.length
+      ? '<div class="barEmpty" style="grid-column:1/-1">No open bottle has those tags. Try &ldquo;Match any&rdquo; or fewer tags.</div>'
+      : tile("All Spirits", pool.length, "#3d2e14", ICONS.wine) +
+        (lowN ? tile("Running Low", lowN, "#3a1d1d", ICONS.other) : "") +
+        // keep each category's colour the same whether or not a filter is on
+        types.map((t,i) => groups[t] ? tile(t, groups[t].length, TINTS[i % TINTS.length], iconFor(t)) : "").join("");
   }
 
   /* ---- the drill-down list ---------------------------------------------- */
@@ -1127,14 +1167,17 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
   function renderList(){
     // Say which category you are looking at, rather than leaving the
     // "tap a category" prompt up after you already have.
+    // The flavor-tag filter narrows the category's bottles first
+    const tagged = listRows.filter(TF.matches);
     $("#bar-intro").innerHTML =
       "<b>" + esc(listTitle) + "</b> &mdash; " + listRows.length + " bottle" +
-      (listRows.length === 1 ? "" : "s") + " open.";
+      (listRows.length === 1 ? "" : "s") + " open" +
+      (TF.active() ? ", <b>" + tagged.length + "</b> with <b>" + esc(TF.summary()) + "</b>." : ".");
     const q = query.trim().toLowerCase();
     // String() matters: a few cells are stored as numbers in Excel (the brand
     // "1792" is one), and calling toLowerCase on a number crashes the search.
     const txt = v => (v == null ? "" : String(v)).toLowerCase();
-    let rows = !q ? listRows : listRows.filter(r =>
+    let rows = !q ? tagged : tagged.filter(r =>
       txt(r.ingredient).includes(q) || txt(r.brand).includes(q) || txt(r.type).includes(q));
 
     rows = rows.slice().sort((a,b) => {
@@ -1179,13 +1222,18 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
                     : "") +
           '</div>' +
           // Your most-used flavor tags for this bottle (full width, under the details)
+          // (matches for the flavor-tag filter are outlined and shown first)
           ((r.topTags && r.topTags.length)
-            ? '<div class="btags"><span class="k">Your tags</span>' + tagChips(r.topTags, 8) + '</div>' : '') +
+            ? '<div class="btags"><span class="k">Your tags</span>' + hitChips(r.topTags, 8, TF) + '</div>' : '') +
+          // RumX's published tags for this bottle (2026-11-25), when we have them
+          (bottleTags(r).rumx.length
+            ? '<div class="btags"><span class="k">RumX tags</span>' + hitChips(bottleTags(r).rumx, 8, TF) + '</div>' : '') +
           // Tasting-notes picker (2026-11-25): log a new neat tasting of this
           // bottle. Needs a Bottle ID so the Mac sync knows which bottle it was.
           (r.bottleId ? '<button class="tp-log" data-tp-b="' + esc(r.bottleId) + '">&#65291; Log tasting</button>' : '') +
         '</div>').join("")
-        : '<div class="barEmpty">Nothing matches &ldquo;' + esc(query) + '&rdquo;.</div>');
+        : '<div class="barEmpty">' + (query ? 'Nothing matches &ldquo;' + esc(query) + '&rdquo;.'
+                                           : 'No bottle here has those flavor tags.') + '</div>');
 
     const q2 = $("#bar-q");
     if (q2) {
@@ -2156,6 +2204,9 @@ function amtLeft(v, r){
   // "Empty" = Amount Remaining exactly 0 (finished bottles kept for history).
   const rows=DATA.ingredients;
   const st={countSel:"#ing-count",sortKey:"type"};
+  // Flavor-tag filter (2026-11-25): narrows the list to bottles with the chosen
+  // tags (yours or RumX's). Re-applies the table whenever the choice changes.
+  const TFI = makeTagFilter($("#ing-tags"), () => st.apply());
   // Row-selection state for printing. Keyed by Bottle ID, because the same
   // ingredient name can be on several rows (an empty bottle and its refill).
   const picked = new Set();
@@ -2187,7 +2238,10 @@ function amtLeft(v, r){
     {key:"nRatings",label:"# Ratings",cls:"num",fmt:v=>v==null?"":v},
     {key:"avgRating",label:"Avg",cls:"num",fmt:v=>v==null?"":`<span class="rate" style="color:${rateColor(v)}">${fmt(v)}</span>`},
     {key:"highRating",label:"High",cls:"num",fmt:v=>v==null?"":fmt(v)},
-    {key:"topTags",label:"Your tags",cls:"tagcell",fmt:v=>tagChips(v,4)},
+    {key:"topTags",label:"Your tags",cls:"tagcell",fmt:v=>hitChips(v,4,TFI)},
+    // RumX's published tags for this bottle (2026-11-25). Sorts by how many it has.
+    {key:"rxTags",label:"RumX tags",cls:"tagcell",fmt:(v,r)=>hitChips(bottleTags(r).rumx,4,TFI),
+     sort:r=>bottleTags(r).rumx.length},
     {key:"lastRated",label:"Last rated",fmt:v=>v==null?"":esc(v)},
     {key:"proof",label:"Proof",cls:"num"},
     {key:"amt",label:"Amt left",cls:"num",fmt:(v,r)=>amtLeft(v,r)},
@@ -2220,7 +2274,7 @@ function amtLeft(v, r){
     const q=$("#ing-q").value.toLowerCase(), t=$("#ing-type").value;
     const hit=!q || (r.ingredient+" "+r.brand+" "+(r.origin||"")+" "+(r.shelf||"")).toLowerCase().includes(q);
     const typeOk = ingQuick ? matchQuick(ingQuick,r.type) : (!t || r.type===t);
-    return hit && typeOk && inScope(r);
+    return hit && typeOk && inScope(r) && TFI.matches(r);
   };
 
   // Recompute the top KPI cards from the currently filtered bottle list.
@@ -4157,6 +4211,140 @@ function tastingTags(h, max){                    // one tasting's N / P / F chip
     .map(([k,l])=>`<span class="tags"><span class="tagstage">${k}</span>${(max?l.slice(0,max):l).map(x=>tagChip(x)).join("")}</span>`).join("");
 }
 const tagText = h => [...(h.nose||[]),...(h.palate||[]),...(h.finish||[])].join(" ");
+
+/* ---------- Flavor-tag filter (added 2026-11-25) ------------------------------
+   Used by the Ingredients tab and the web app's Bar tab. You pick flavor tags;
+   the list narrows to bottles that carry them. A bottle "has" a tag if it's in
+   YOUR tags (from your tastings) OR in RumX's published tags for that bottle.
+
+   bottleTags(r) -> {mine:[...], rumx:[...], all:Set(lower-case)} for one bottle.
+   makeTagFilter(mountEl, onChange) draws the control inside mountEl and returns
+     .matches(r)  true if bottle r passes the filter (always true when no tags)
+     .isHit(tag)  true if that tag is one of the chosen ones (for highlighting)
+     .active()    true when at least one tag is chosen
+   (These are "function" declarations, so they can be used anywhere above.)   */
+function bottleTags(r){
+  if (r._tags) return r._tags;                    // worked out once per bottle
+  const mine = (r.topTags || []).map(x => Array.isArray(x) ? x[0] : x);
+  const rx = ((DATA.flavor || {}).bottles || {})[r.ingredient] || {};
+  const rumx = [...new Set([...(rx.nose || []), ...(rx.palate || []), ...(rx.finish || [])])];
+  r.rxTags = rumx;                                // also used by the "RumX tags" column
+  r._tags = { mine, rumx, all: new Set([...mine, ...rumx].map(t => String(t).toLowerCase())) };
+  return r._tags;
+}
+
+// Tag chips with the ones your filter matched outlined and moved to the front,
+// so a match is never hidden behind the "+N" overflow.
+function hitChips(list, max, tf){
+  if (!list || !list.length) return "";
+  const name = x => Array.isArray(x) ? x[0] : x;
+  const hit = x => !!(tf && tf.isHit(name(x)));
+  const l = list.filter(hit).concat(list.filter(x => !hit(x)));
+  const shown = max ? l.slice(0, max) : l;
+  return `<span class="tags">${shown.map(x => {
+      const c = Array.isArray(x) ? tagChip(x[0], x[1]) : tagChip(x);
+      return hit(x) ? c.replace('class="tag"', 'class="tag tf-hit"') : c;
+    }).join("")}${max && l.length > max ? `<span class="count">+${l.length - max}</span>` : ""}</span>`;
+}
+
+function makeTagFilter(mount, onChange){
+  const low = s => String(s == null ? "" : s).toLowerCase();
+  const att = s => String(s == null ? "" : s).replace(/[&<>"']/g,
+                     c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const color = t => (DATA.familyColor || {})[(DATA.tagFamily || {})[t]] || "#94a3b8";
+
+  // Every tag on at least one bottle, with how many bottles carry it
+  const count = {}, display = {};
+  DATA.ingredients.forEach(r => {
+    const b = bottleTags(r);
+    b.all.forEach(t => { count[t] = (count[t] || 0) + 1; });
+    b.mine.concat(b.rumx).forEach(t => { if (!display[low(t)]) display[low(t)] = t; });
+  });
+  const universe = Object.keys(count).sort((a, b) => count[b] - count[a] || a.localeCompare(b));
+
+  const sel = [];            // chosen tags (lower-case)
+  let mode = "all";          // "all" = has every chosen tag; "any" = has at least one
+  let open = false, q = "", showAll = false;
+  const SHOW_FIRST = 60;
+
+  mount.innerHTML = `<span class="tf-top"></span>
+    <div class="tf-panel" style="display:none">
+      <input type="search" class="tf-q" placeholder="Search flavor tags&hellip;" autocomplete="off">
+      <div class="tf-hint">Matches your own tags and RumX&rsquo;s published tags.
+        The number is how many bottles have that tag.</div>
+      <div class="tf-list"></div>
+    </div>`;
+  const top = mount.querySelector(".tf-top"), panel = mount.querySelector(".tf-panel"),
+        list = mount.querySelector(".tf-list"), qBox = mount.querySelector(".tf-q");
+
+  function chip(t, on){
+    const c = color(display[t]);
+    return `<button type="button" class="tf-chip${on ? " on" : ""}" data-tf="${att(t)}"
+      style="color:${c};border-color:${c}${on ? "" : "66"};background:${c}${on ? "40" : "12"}">${
+      esc(display[t])}<span class="n">${count[t]}</span></button>`;
+  }
+  function drawTop(){
+    top.style.display = "contents";
+    top.innerHTML =
+      `<button type="button" class="chip tf-open${sel.length ? " active" : ""}">&#127991;&#65039; Flavor tags${
+        sel.length ? " (" + sel.length + ")" : ""} ${open ? "&#9652;" : "&#9662;"}</button>` +
+      sel.map(t => { const c = color(display[t]);
+        return `<button type="button" class="tf-on" data-rm="${att(t)}" title="Remove"
+          style="color:${c};border-color:${c};background:${c}33">${esc(display[t])} &times;</button>`; }).join("") +
+      (sel.length > 1 ? `<span class="tf-mode"><button type="button" data-m="all" class="${mode === "all" ? "on" : ""}">Match all</button><button type="button" data-m="any" class="${mode === "any" ? "on" : ""}">Match any</button></span>` : "") +
+      (sel.length ? `<button type="button" class="chip tf-clear">Clear tags</button>` : "");
+    mount.classList.toggle("tf-isopen", open);
+    panel.style.display = open ? "block" : "none";
+  }
+  function drawList(){
+    const ql = low(q.trim());
+    let tags = ql ? universe.filter(t => t.startsWith(ql)).concat(universe.filter(t => !t.startsWith(ql) && t.includes(ql)))
+                  : universe;
+    const more = !ql && !showAll && tags.length > SHOW_FIRST;
+    if (more) tags = tags.slice(0, SHOW_FIRST);
+    list.innerHTML = tags.length
+      ? tags.map(t => chip(t, sel.includes(t))).join("") +
+        (more ? `<button type="button" class="tf-more">Show all ${universe.length}&hellip;</button>` : "")
+      : `<span class="tf-hint">No bottle has a tag like &ldquo;${esc(q)}&rdquo;.</span>`;
+  }
+  const changed = () => { drawTop(); drawList(); onChange && onChange(); };
+
+  mount.addEventListener("click", e => {
+    if (e.target.closest(".tf-open")) { open = !open; drawTop(); if (open) { drawList(); qBox.focus(); } return; }
+    if (e.target.closest(".tf-clear")) { sel.length = 0; changed(); return; }
+    if (e.target.closest(".tf-more")) { showAll = true; drawList(); return; }
+    const m = e.target.closest("[data-m]");
+    if (m) { mode = m.dataset.m; changed(); return; }
+    const rm = e.target.closest("[data-rm]");
+    if (rm) { sel.splice(sel.indexOf(rm.dataset.rm), 1); changed(); return; }
+    const c = e.target.closest(".tf-chip");
+    if (c) {
+      const t = c.dataset.tf, i = sel.indexOf(t);
+      if (i >= 0) sel.splice(i, 1); else sel.push(t);
+      if (q) { q = ""; qBox.value = ""; }        // picked from a search - clear it
+      changed();
+    }
+  });
+  qBox.addEventListener("input", e => { q = e.target.value; drawList(); });
+  // Tapping anywhere else closes the tag list (the chosen tags stay). A tap on
+  // the filter's own buttons redraws them, so the tapped button may already be
+  // gone from the page by now - "isConnected" skips those instead of closing.
+  document.addEventListener("click", e => {
+    if (open && e.target.isConnected && !mount.contains(e.target)) { open = false; drawTop(); }
+  });
+  drawTop();
+
+  return {
+    matches: r => {
+      if (!sel.length) return true;
+      const a = bottleTags(r).all;
+      return mode === "all" ? sel.every(t => a.has(t)) : sel.some(t => a.has(t));
+    },
+    isHit: t => sel.includes(low(t)),
+    active: () => sel.length > 0,
+    summary: () => sel.map(t => display[t]).join(mode === "all" ? " + " : " or ")
+  };
+}
 function barOpts(money,stacked){
   return {responsive:true,plugins:{legend:{display:!!stacked,labels:{color:"#94a3b8"}}},
     scales:{x:{ticks:{color:"#94a3b8",font:{size:10}},grid:{display:false},stacked:!!stacked},
