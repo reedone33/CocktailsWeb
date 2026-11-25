@@ -95,6 +95,15 @@ fi
 PLAIN="$(mktemp -t cocktails-plain)"
 trap 'rm -f "$PLAIN"; rmdir "$LOCK" 2>/dev/null || true' EXIT
 
+# --- 0. Bottle photos (added 2026-11-25) ------------------------------------
+# Downloads newly checked bottle photos and converts any of your own from the
+# "Bottle Photos" folder. A problem here must never stop a publish, so a
+# failure is only logged.
+say "Updating bottle photos..."
+if ! run python3 "$BAR/Tools/fetch_bottle_images.py"; then
+  say "WARNING: the bottle-photo step had a problem - publishing without new photos."
+fi
+
 say "Reading the workbook..."
 # --inbox-keychain (added 2026-11-25): adds the tasting-notes inbox web address
 # and secret word from the Keychain to this PLAIN file, which is encrypted in

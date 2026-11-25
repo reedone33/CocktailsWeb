@@ -1216,6 +1216,8 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
             field("Pour (2 oz)",r.p2    != null ? money(r.p2)   : "") +
             field("Purchased",  esc(r.purchased)) +
             field("Origin",     esc(r.origin)) +
+            // Bottle ID (2026-11-25): name your own photo with it, e.g. B0186.jpg
+            field("Bottle ID",  esc(r.bottleId)) +
             field("Rating",     r.avgRating != null
                     ? '<b style="color:' + rateColor(r.avgRating) + '">' + fmt(r.avgRating) + '</b>' +
                       ' <span style="color:var(--muted)">(' + r.nRatings + ')</span>'
@@ -2476,18 +2478,102 @@ async function findWikiImage(query, mustMatch){
   return out;
 }
 
-/* Bottle photo for a neat pour.
-   IMPORTANT: only ever show a picture of the ACTUAL brand. TheCocktailDB's
-   category images are real product shots (its "Dark rum" is a Captain Morgan
-   bottle), so falling back to a category would show the wrong bottle. We
-   confirm the brand exists as a real entry first; if it doesn't, we show
-   nothing and offer a web search instead.                                    */
+/* Bottle photo for a neat pour (rewritten 2026-11-25).
+   Tries these in order and stops at the first picture that loads:
+     1. YOUR OWN photo of the bottle    (docs/img/bottles/mine/<Bottle ID>.jpg)
+     2. A CHECKED photo of that bottle  (Tools/bottle_images.json, downloaded
+        into docs/img/bottles/ by Tools/fetch_bottle_images.py)
+     3. The release photo from the rum reference (Hampden, El Dorado,
+        Appleton Hearts, Foursquare)
+     4. Wikimedia Commons: a photo FILE whose name contains the brand AND a
+        word like "bottle" - so it is a bottle, not a person or a building
+     5. TheCocktailDB's picture of the brand, labelled as possibly a
+        different bottle of that brand
+   It deliberately no longer uses the main picture of a Wikipedia article:
+   that is how Alexander Hamilton and distillery buildings turned up.
+   A picture you mark "Wrong picture" is skipped from then on (this device). */
+const BADIMG_KEY = "lastcall.badimg";
+function badImages(){
+  try { return new Set(JSON.parse(localStorage.getItem(BADIMG_KEY) || "[]")); }
+  catch(_) { return new Set(); }
+}
+function markBadImage(src){
+  const s = badImages(); s.add(src);
+  try { localStorage.setItem(BADIMG_KEY, JSON.stringify([...s])); } catch(_) {}
+}
+
+// Words that identify a bottle: numbers count ("12", "2023"); filler doesn't
+function nameWords(s){
+  return String(s||"").toLowerCase().replace(/[^a-z0-9 ]/g," ").split(/\s+/)
+    .filter(w => w && (/^\d+$/.test(w) || (w.length > 2 && !STOP.has(w))));
+}
+
+async function findCommonsBottle(bottle){
+  const brand = (bottle.brand||"").trim();
+  const want = keyWords(brand);                    // e.g. "Appleton Estate" -> ["appleton"]
+  if(!want.length) return null;
+  const extra = nameWords(bottle.ingredient).filter(w => !want.includes(w));
+  try{
+    const url = "https://commons.wikimedia.org/w/api.php?action=query&format=json&formatversion=2"+
+      "&origin=*&generator=search&gsrnamespace=6&gsrlimit=25&prop=imageinfo&iiprop=url"+
+      "&iiurlwidth=700&gsrsearch="+encodeURIComponent(brand+" bottle");
+    const j = await (await fetch(url)).json();
+    const pages = (j.query && j.query.pages) || [];
+    const scored = pages.map(p => {
+      const t = String(p.title||"").toLowerCase();
+      const info = (p.imageinfo||[])[0] || {};
+      const isPhoto = /\.(jpe?g|png|webp)$/.test(t);
+      const isBottle = /bottle|flasche|bouteille|botella|bottiglia|\bfles\b/.test(t);
+      const hasBrand = want.every(w => t.includes(w));
+      const score = extra.filter(w => t.includes(w)).length;   // how much of the name matches
+      return { ok: isPhoto && isBottle && hasBrand && (info.thumburl || info.url), p, info, score };
+    }).filter(x => x.ok).sort((a,b) => b.score - a.score);
+    // The file name must also share at least half of the words that identify
+    // THIS bottle (age, cask, mark, year...). Otherwise it's a different bottle
+    // of the same brand - e.g. a Hamilton 151 for a Hamilton single cask - and
+    // showing nothing is better than showing the wrong bottle.
+    const need = Math.ceil(extra.length / 2);
+    if(!scored.length || scored[0].score < need) return null;
+    const best = scored[0];
+    return { src: best.info.thumburl || best.info.url, name: best.p.title.replace(/^File:/,""),
+             page: best.info.descriptionurl || ("https://commons.wikimedia.org/wiki/"+encodeURIComponent(best.p.title)),
+             credit: "Wikimedia Commons",
+             // only call it this exact bottle if every identifying word matched
+             exact: extra.length > 0 && best.score === extra.length };
+  }catch(e){ return null; }        // offline or blocked - just report nothing
+}
+
 async function findBottleImage(bottle){
   const key = "bottle:"+bottle.ingredient;
   if(imgCache.has(key)) return imgCache.get(key);
+  const bad = badImages();
+  const loads = async src => !bad.has(src) && !!(await firstLoadable([src]));
   let out = null;
+
+  // 1 + 2. Your own photo, or a checked photo (listed by the dashboard builder)
+  const bi = (DATA.bottleImages || {})[bottle.ingredient];
+  if(bi){
+    const src = /^https?:/.test(bi.src) ? bi.src : rrAsset(bi.src);
+    if(await loads(src))
+      out = { src, name: bottle.ingredient, exact: true, page: bi.page || null,
+              credit: bi.kind === "mine" ? "Your photo" : "Checked photo" + (bi.credit ? " · " + bi.credit : "") };
+  }
+  // 3. The release photo from the rum reference
+  if(!out){
+    const rel = releaseFor(bottle.ingredient);
+    if(rel && rel.image){
+      const src = rrAsset(rel.image);
+      if(await loads(src)) out = { src, name: rel.name, exact: true, credit: "Release photo (rum reference)" };
+    }
+  }
+  // 4. A bottle photo on Wikimedia Commons
+  if(!out){
+    const c = await findCommonsBottle(bottle);
+    if(c && await loads(c.src)) out = c;
+  }
+  // 5. TheCocktailDB's picture of the brand (may be a different bottle of it)
   const brand = (bottle.brand||"").trim();
-  if(brand){
+  if(!out && brand){
     try{
       const r = await fetch("https://www.thecocktaildb.com/api/json/v1/1/search.php?i="+
                             encodeURIComponent(brand));
@@ -2497,15 +2583,9 @@ async function findBottleImage(bottle){
       if(hit){
         const src = "https://www.thecocktaildb.com/images/ingredients/"+
                     encodeURIComponent(hit.strIngredient)+".png";
-        if(await firstLoadable([src]))
-          out = {src, name:hit.strIngredient, credit:"TheCocktailDB", exact:true};
+        if(await loads(src)) out = { src, name: hit.strIngredient, credit: "TheCocktailDB", exact: false };
       }
-    }catch(e){ /* fall through to Wikipedia */ }
-  }
-  // Second source: Wikipedia, searched by brand (+ spirit type for context)
-  if(!out && brand){
-    const w = await findWikiImage(brand+" "+(bottle.type||""), brand);
-    if(w) out = {...w, credit:"Wikipedia"};
+    }catch(e){ /* nothing found */ }
   }
   imgCache.set(key, out);
   return out;
@@ -2656,7 +2736,7 @@ function openDrink(name){
         // Never substitute a different bottle — offer a real web search instead
         const q = encodeURIComponent(isNeat ? name+" bottle" : generic+" cocktail");
         slot.innerHTML = `<div class="mimg-msg">
-          No photo of ${what} is available from the cocktail database.
+          ${isNeat ? "No checked photo of this bottle yet." : `No photo of ${what} is available from the cocktail database.`}
           <a href="https://www.google.com/search?tbm=isch&q=${q}" target="_blank"
              rel="noopener" style="color:var(--accent)">Search the web &#8599;</a>
           &nbsp;·&nbsp;<a href="#" id="mimg-back" style="color:var(--accent)">Back</a></div>`;
@@ -2672,11 +2752,23 @@ function openDrink(name){
       const credit = res.wiki
         ? `Wikipedia: <a href="${esc(res.wiki)}" target="_blank" rel="noopener">${esc(res.name)}</a> &#8599;`
         : (res.credit ? `Photo: ${esc(String(res.credit).split(" http")[0])}` : "Photo: TheCocktailDB");
+      // Bottles (2026-11-25): link the photo's source page, say plainly when it
+      // may not be this exact bottle, and offer "Wrong picture" to skip it.
+      const src2 = res.page ? ` &middot; <a href="${esc(res.page)}" target="_blank" rel="noopener" style="color:var(--accent)">source &#8599;</a>` : "";
+      const maybe = isNeat && res.exact === false
+        ? `<div style="color:var(--gold);font-size:11.5px;margin-top:3px">May be a different bottle of this brand.</div>` : "";
       slot.innerHTML = `
         <img class="mimg" src="${esc(res.src)}" alt="${esc(res.name)}" loading="lazy">
-        <div class="mimg-cap"><span>${credit}</span>
-          <button class="imgbtn" id="mimg-hide" style="padding:3px 9px;font-size:11px">Hide image</button></div>`;
+        <div class="mimg-cap"><span>${credit}${src2}${maybe}</span>
+          <span style="display:flex;gap:6px">
+          ${isNeat ? `<button class="imgbtn" id="mimg-bad" style="padding:3px 9px;font-size:11px" title="Never show this picture for this bottle again (on this device)">Wrong picture</button>` : ""}
+          <button class="imgbtn" id="mimg-hide" style="padding:3px 9px;font-size:11px">Hide image</button></span></div>`;
       $("#mimg-hide").onclick = showBtn;
+      if (isNeat) $("#mimg-bad").onclick = () => {
+        markBadImage(res.src);                       // remembered on this device
+        imgCache.delete("bottle:" + bott.ingredient);
+        load();                                      // try the next source
+      };
       // If the image itself fails to load, fall back to the button
       slot.querySelector("img").onerror = () => {
         slot.innerHTML = `<div class="mimg-msg">That image could not be loaded.</div>`;
