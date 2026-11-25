@@ -208,6 +208,50 @@
              color:var(--text);font-size:13.5px;font-weight:600;text-decoration:none}
   .shelfLink span{color:var(--muted);font-weight:500;font-size:12.5px}
   .shelfLink:hover{border-color:var(--accent)}
+
+  /* ---- Tasting-notes picker (added 2026-11-25) ----------------------------- */
+  /* the small pencil button at the start of each Drink History row */
+  .tpcell{width:42px;text-align:center}
+  .tp-btn{background:var(--panel2);border:1px solid var(--line);color:var(--accent);
+          border-radius:7px;width:30px;height:26px;cursor:pointer;font-size:13px;line-height:1}
+  .tp-btn:hover{border-color:var(--accent)}
+  /* the "Log tasting" button on each Bar-tab bottle card */
+  .tp-log{margin-top:10px;background:var(--panel2);border:1px solid var(--line);color:var(--accent);
+          padding:8px 13px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer}
+  .tp-log:hover{border-color:var(--accent)}
+  /* inside the pop-up. Inputs use 16px text so iPhone Safari doesn't zoom in. */
+  .tp .tp-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .tp input[type=date],.tp input[type=number],.tp input[type=search],.tp textarea{
+          background:var(--panel2);border:1px solid var(--line);color:var(--text);
+          border-radius:8px;padding:8px 10px;font-size:16px;outline:none;font-family:inherit}
+  .tp input:focus,.tp textarea:focus{border-color:var(--accent)}
+  .tp input[type=search]{width:100%}
+  .tp-rate{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .tp-rate label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+  .tp-rate input{width:100%}
+  .tp-stages{display:flex;width:100%;margin-bottom:8px}
+  .tp-stages button{flex:1}
+  .tp-sel{min-height:34px;display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:4px 0 10px;
+          padding:8px;border:1px dashed var(--line);border-radius:10px}
+  .tp-sel .none{color:var(--muted);font-size:12.5px}
+  .tp-chip{font-size:13px;padding:5px 10px;border-radius:999px;border:1px solid;background:transparent;
+           cursor:pointer;line-height:1.25;font-family:inherit}
+  .tp-chip.on{font-weight:700}
+  .tp-chip.lock{opacity:.6;cursor:default}
+  .tp-list{display:flex;flex-wrap:wrap;gap:6px;max-height:300px;overflow:auto;margin:8px 0 12px}
+  .tp-h{width:100%;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:6px}
+  .tp-more{background:none;border:none;color:var(--accent);font-size:12.5px;cursor:pointer;padding:5px 4px}
+  .tp textarea{width:100%;min-height:64px;resize:vertical}
+  .tp-save{width:100%;margin-top:12px;background:var(--accent);color:#0f172a;border:none;padding:12px;
+           border-radius:10px;font-weight:700;font-size:15px;cursor:pointer}
+  .tp-save:disabled{opacity:.55;cursor:default}
+  .tp-msg{margin-top:10px;font-size:13px;min-height:18px;line-height:1.45}
+  .tp-note{font-size:12px;color:var(--muted);margin:-4px 0 12px;line-height:1.45}
+  /* "N notes waiting to send" - only shown when the offline queue isn't empty */
+  #tp-badge{position:fixed;left:12px;bottom:12px;z-index:150;background:#3d2e14;color:#fbbf24;
+            border:1px solid #fbbf2466;border-radius:999px;padding:8px 14px;font-size:12.5px;
+            font-weight:600;cursor:pointer;font-family:inherit}
+  #tp-badge.err{background:#2a1212;color:#f87171;border-color:#7f1d1d}
   /* ---- Infographic tab ---------------------------------------------------- */
   .info{max-width:1100px}
   .info h2.big{font-size:26px;margin:6px 0 2px}
@@ -1137,6 +1181,9 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
           // Your most-used flavor tags for this bottle (full width, under the details)
           ((r.topTags && r.topTags.length)
             ? '<div class="btags"><span class="k">Your tags</span>' + tagChips(r.topTags, 8) + '</div>' : '') +
+          // Tasting-notes picker (2026-11-25): log a new neat tasting of this
+          // bottle. Needs a Bottle ID so the Mac sync knows which bottle it was.
+          (r.bottleId ? '<button class="tp-log" data-tp-b="' + esc(r.bottleId) + '">&#65291; Log tasting</button>' : '') +
         '</div>').join("")
         : '<div class="barEmpty">Nothing matches &ldquo;' + esc(query) + '&rdquo;.</div>');
 
@@ -1188,6 +1235,347 @@ const money = v => v==null? "" : "$"+Number(v).toFixed(2);
       '<span style="color:#f87171">The bar grid could not be built: ' + esc(String(err)) + '</span>';
     console.error(err);
   }
+})();
+
+
+/* ---------- Tasting-notes picker (added 2026-11-25) ------------------------ */
+const TP = (function(){
+  // ---- Settings -------------------------------------------------------------
+  // The inbox address + secret word live inside the encrypted data. If they
+  // are missing (Keychain not set up on the Mac), saving still works offline:
+  // notes wait on the phone until a publish that includes them.
+  const CFG = DATA.config || {};
+  const QKEY = "lastcall.inbox.queue";             // where waiting saves are kept
+  const APP_VERSION = "lastcall-" + (DATA.generated || "");
+  const FL = DATA.flavor || { types:{}, typeOf:{}, bottles:{} };
+  const STAGES = [["nose","Nose"],["palate","Palate"],["finish","Finish"]];
+  const SHOW_FIRST = 36;                           // chips shown before "Show all"
+
+  // ---- Small helpers --------------------------------------------------------
+  // Safe text for inside an HTML attribute (the page's esc() leaves quotes alone)
+  const att = s => (s==null ? "" : String(s)).replace(/[&<>"']/g,
+                    c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  // A random id for each save, so a resend can never be applied twice
+  const newId = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+                    : Date.now().toString(36) + Math.random().toString(36).slice(2);
+  // Today's date on THIS phone, as YYYY-MM-DD
+  const today = () => { const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); };
+  const lower = s => String(s || "").trim().toLowerCase();
+  // The colour of a tag's flavor family (same colours as the tag chips elsewhere)
+  const colorOf = t => (DATA.familyColor || {})[(DATA.tagFamily || {})[t]] || "#94a3b8";
+
+  // Number every Drink History row, so a button can point back to its row
+  DATA.history.forEach((h, i) => { h._i = i; });
+
+  // ---- The waiting queue (kept on the phone) --------------------------------
+  // Browser storage can be unavailable (e.g. private browsing). Then the queue
+  // lives in memory only, which still covers a short loss of signal.
+  let memQ = null;
+  function qLoad(){
+    if (memQ) return memQ.slice();
+    try { return JSON.parse(localStorage.getItem(QKEY) || "[]"); } catch(_) { return []; }
+  }
+  function qSave(q){
+    try { localStorage.setItem(QKEY, JSON.stringify(q)); memQ = null; }
+    catch(_) { memQ = q.slice(); }
+  }
+
+  // The "N notes waiting" badge, bottom-left. Tap it to try sending now.
+  const badge = document.createElement("button");
+  badge.id = "tp-badge"; badge.hidden = true;
+  document.body.appendChild(badge);
+  badge.onclick = () => flush();
+  function showBadge(problem){
+    const n = qLoad().length;
+    badge.hidden = n === 0;
+    badge.textContent = n ? "⏳ " + n + " note" + (n === 1 ? "" : "s") + " waiting to send" : "";
+    badge.title = problem || "Tap to try sending now";
+    badge.classList.toggle("err", !!problem && problem !== "offline");
+  }
+
+  // Send everything in the queue, oldest first. Stops at the first failure so
+  // the order is kept. Returns {sent, problem} where problem is null, "offline",
+  // "not set up", or the inbox's own error text (e.g. "bad secret").
+  let flushing = null;
+  function flush(){
+    if (flushing) return flushing;                 // one send at a time
+    flushing = (async () => {
+      let sent = 0, problem = null;
+      if (!CFG.inbox_url || !CFG.inbox_secret) problem = "not set up";
+      while (!problem) {
+        const q = qLoad();
+        if (!q.length) break;
+        const item = q[0];
+        let res = null;
+        try {
+          // IMPORTANT: no "Content-Type: application/json" header. Without it the
+          // browser sends plain text, which Google's script service accepts from
+          // another website; with it, the browser first sends a permission check
+          // that Google doesn't answer, and the save fails.
+          const r = await fetch(CFG.inbox_url, {
+            method: "POST",
+            body: JSON.stringify(Object.assign({ secret: CFG.inbox_secret }, item))
+          });
+          res = await r.json();
+        } catch (_) { problem = "offline"; break; }
+        if (!res || !res.ok) { problem = (res && res.error) || "the inbox said no"; break; }
+        qSave(qLoad().filter(x => x.client_id !== item.client_id));   // sent - drop it
+        sent++;
+      }
+      showBadge(problem);
+      return { sent, problem };
+    })();
+    return flushing.finally(() => { flushing = null; });
+  }
+  // Try again whenever the signal comes back or the app comes to the front
+  window.addEventListener("online", () => flush());
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) flush(); });
+  setTimeout(() => flush(), 1500);
+
+  // ---- Which tag lists to offer ----------------------------------------------
+  // flavor_tags.json has ranked Nose/Palate/Finish lists per spirit (rum,
+  // whiskey, gin...). Pick the one that fits this drink; rum is the fallback.
+  function listKeyFor(typeName){
+    const k = (FL.typeOf || {})[typeName];
+    if (k && FL.types[k]) return k;
+    return FL.types.rum ? "rum" : Object.keys(FL.types)[0];
+  }
+  const allTags = Object.keys(DATA.tagFamily || {});
+
+  // ---- Pop-up state -----------------------------------------------------------
+  let S = null;   // what's on screen right now
+
+  function openHist(i){
+    const h = DATA.history[i]; if (!h) return;
+    const bott = DATA.ingredients.find(x => x.ingredient === h.specific);
+    S = { kind: "hist", h, name: h.specific || h.drink || "",
+          sub: [h.date, h.brand && h.brand !== h.specific ? h.brand : null].filter(Boolean).join(" · "),
+          listKey: listKeyFor(bott ? bott.type : h.drink),
+          existing: { nose: h.nose || [], palate: h.palate || [], finish: h.finish || [] },
+          reed: h.reed ?? "", cand: h.candice ?? "" };
+    start();
+  }
+  function openBottle(bid){
+    const b = DATA.ingredients.find(x => x.bottleId === bid); if (!b) return;
+    S = { kind: "bottle", b, name: b.ingredient || "",
+          sub: "Log a tasting" + (b.brand ? " · " + b.brand : ""),
+          listKey: listKeyFor(b.type),
+          existing: { nose: [], palate: [], finish: [] },
+          reed: "", cand: "", date: today(), where: "Home" };
+    start();
+  }
+  function start(){
+    Object.assign(S, { added: { nose: [], palate: [], finish: [] }, stage: "nose",
+                       q: "", showAll: false, comment: "", saved: false });
+    drawCard();
+  }
+
+  // ---- Drawing -----------------------------------------------------------------
+  // The card is drawn once; only the tag area is redrawn as you tap, so the
+  // text boxes keep what you typed and the keyboard stays open.
+  function drawCard(){
+    const bottleBits = S.kind === "bottle" ? `
+      <div class="tp-row">
+        <input type="date" id="tp-date" value="${att(S.date)}" aria-label="Date">
+        <span class="barSort" id="tp-where">
+          <button data-w="Home" class="${S.where === "Home" ? "on" : ""}">Home</button>
+          <button data-w="Out" class="${S.where === "Out" ? "on" : ""}">Out</button>
+        </span>
+      </div>
+      <div class="tp-note">Logs a new neat pour of this bottle. A Home pour is taken off the bottle by the tracker.</div>` : `
+      <div class="tp-note">Tags already on this tasting are shown with a &#10003;. New ones are added; to remove one, edit the workbook.</div>`;
+
+    $("#drink-card").innerHTML = `
+      <div class="mhead">
+        <button class="mclose" aria-label="Close">&times;</button>
+        <h3>${esc(S.name)}</h3>
+        <div class="sub">${esc(S.sub)}</div>
+      </div>
+      <div class="mbody tp">
+        ${bottleBits}
+        <div class="tp-rate">
+          <label>Reed&rsquo;s rating <input type="number" id="tp-reed" inputmode="decimal" min="0" max="10" step="0.1" value="${att(S.reed)}" placeholder="0&ndash;10"></label>
+          <label>Candice&rsquo;s rating <input type="number" id="tp-cand" inputmode="decimal" min="0" max="10" step="0.1" value="${att(S.cand)}" placeholder="0&ndash;10"></label>
+        </div>
+        <span class="barSort tp-stages" id="tp-stages"></span>
+        <div class="tp-sel" id="tp-sel"></div>
+        <input type="search" id="tp-q" placeholder="Search all flavor tags&hellip;" autocomplete="off">
+        <div class="tp-list" id="tp-list"></div>
+        <textarea id="tp-comment" placeholder="Comment (optional)"></textarea>
+        <button class="tp-save" id="tp-save">${S.kind === "bottle" ? "Log tasting" : "Save notes"}</button>
+        <div class="tp-msg" id="tp-msg"></div>
+      </div>`;
+    $("#drink-modal").hidden = false;
+    $("#drink-modal").scrollTop = 0;
+
+    // Keep the state in step with the boxes as you type
+    $("#tp-reed").oninput    = e => { S.reed = e.target.value; };
+    $("#tp-cand").oninput    = e => { S.cand = e.target.value; };
+    $("#tp-comment").oninput = e => { S.comment = e.target.value; };
+    $("#tp-q").oninput       = e => { S.q = e.target.value; drawTags(); };
+    if ($("#tp-date")) $("#tp-date").oninput = e => { S.date = e.target.value; };
+    drawTags();
+  }
+
+  const has = (list, t) => list.some(x => lower(x) === lower(t));
+
+  function chip(t, cls){
+    const c = colorOf(t);
+    const on = cls === "on";
+    return `<button type="button" class="tp-chip ${cls}" data-t="${att(t)}" style="color:${c};border-color:${c}${on ? "" : "66"};background:${c}${on ? "40" : "12"}">${
+      cls === "lock" ? "&#10003; " : ""}${esc(t)}</button>`;
+  }
+
+  function drawTags(){
+    const st = S.stage, ex = S.existing[st], ad = S.added[st];
+
+    // Stage switcher, with a count of what you've added in each stage
+    $("#tp-stages").innerHTML = STAGES.map(([k, label]) => {
+      const n = S.added[k].length;
+      return `<button data-stage="${k}" class="${k === st ? "on" : ""}">${label}${n ? " (" + n + ")" : ""}</button>`;
+    }).join("");
+
+    // What this tasting will have: existing (locked) + newly added (tap to remove)
+    const sel = ex.map(t => chip(t, "lock")).join("") + ad.map(t => chip(t, "on")).join("");
+    $("#tp-sel").innerHTML = sel || `<span class="none">No ${st} tags yet &mdash; tap some below.</span>`;
+
+    // The choices: search results, or suggestions + the ranked list
+    const q = lower(S.q);
+    const taken = t => has(ex, t) || has(ad, t);
+    let html = "";
+    if (q) {
+      const pool = Array.from(new Set(((FL.types[S.listKey] || {})[st] || []).concat(allTags)));
+      const starts = pool.filter(t => lower(t).startsWith(q));
+      const inside = pool.filter(t => !lower(t).startsWith(q) && lower(t).includes(q));
+      const hits = starts.concat(inside).slice(0, 40);
+      html = hits.map(t => chip(t, taken(t) ? (has(ex, t) ? "lock" : "on") : "")).join("");
+      if (!pool.some(t => lower(t) === q)) {
+        const typed = S.q.trim();
+        html += `<button type="button" class="tp-chip" data-t="${att(typed)}" style="color:var(--text);border-color:var(--line)">&#65291; Add &ldquo;${esc(typed)}&rdquo;</button>`;
+      }
+      if (!hits.length) html = `<div class="tp-h">No tag matches &mdash; add it as your own:</div>` + html;
+    } else {
+      // RumX's published tags for this exact bottle, when we have them
+      const rx = ((FL.bottles || {})[S.name] || {})[st] || [];
+      if (rx.length) {
+        html += `<div class="tp-h">RumX tags for this bottle</div>` +
+                rx.map(t => chip(t, taken(t) ? (has(ex, t) ? "lock" : "on") : "")).join("");
+      }
+      const ranked = ((FL.types[S.listKey] || {})[st] || []).filter(t => !has(rx, t));
+      const shown = S.showAll ? ranked : ranked.slice(0, SHOW_FIRST);
+      html += `<div class="tp-h">Most used for ${esc(S.listKey)} &middot; ${st}</div>` +
+              shown.map(t => chip(t, taken(t) ? (has(ex, t) ? "lock" : "on") : "")).join("");
+      if (!S.showAll && ranked.length > SHOW_FIRST)
+        html += `<button type="button" class="tp-more" id="tp-more">Show all ${ranked.length}&hellip;</button>`;
+    }
+    $("#tp-list").innerHTML = html;
+  }
+
+  // ---- Taps inside the pop-up (one listener handles every button) ------------
+  $("#drink-card").addEventListener("click", e => {
+    if (!S || !e.target.closest(".tp")) return;      // not the picker
+    const stageB = e.target.closest("[data-stage]");
+    if (stageB) { S.stage = stageB.dataset.stage; S.showAll = false; drawTags(); return; }
+    const whereB = e.target.closest("#tp-where [data-w]");
+    if (whereB) {
+      S.where = whereB.dataset.w;
+      $("#tp-where").querySelectorAll("button").forEach(b => b.classList.toggle("on", b === whereB));
+      return;
+    }
+    if (e.target.closest("#tp-more")) { S.showAll = true; drawTags(); return; }
+    if (e.target.closest("#tp-save")) { save(); return; }
+    const c = e.target.closest(".tp-chip");
+    if (c && !c.classList.contains("lock") && !S.saved) {
+      const t = c.dataset.t, ad = S.added[S.stage];
+      if (has(S.existing[S.stage], t)) return;     // already on this tasting
+      const i = ad.findIndex(x => lower(x) === lower(t));
+      if (i >= 0) ad.splice(i, 1); else ad.push(t);
+      if (S.q) { S.q = ""; $("#tp-q").value = ""; }   // picked from search - clear it
+      drawTags();
+    }
+  });
+
+  // ---- Saving -------------------------------------------------------------------
+  async function save(){
+    const msg = t => { $("#tp-msg").innerHTML = t; };
+    if (S.saved) { $("#drink-modal").hidden = true; return; }   // the "Done" button
+
+    // A rating box: blank = no rating; otherwise a number from 0 to 10
+    const rate = v => {
+      if (v === "" || v == null) return null;
+      const n = Number(v);
+      return isFinite(n) && n >= 0 && n <= 10 ? Math.round(n * 10) / 10 : NaN;
+    };
+    let reed = rate(S.reed), cand = rate(S.cand);
+    if (Number.isNaN(reed) || Number.isNaN(cand)) { msg('<span style="color:#f87171">Ratings must be a number from 0 to 10.</span>'); return; }
+    // On an existing tasting, only send a rating that actually changed
+    if (S.kind === "hist") {
+      if (reed !== null && reed === S.h.reed) reed = null;
+      if (cand !== null && cand === S.h.candice) cand = null;
+    }
+    const comment = S.comment.trim();
+    const tags = {}; STAGES.forEach(([k]) => { tags[k] = S.added[k].join("; "); });
+    const anyTags = STAGES.some(([k]) => S.added[k].length);
+    if (!anyTags && !comment && reed === null && cand === null) { msg("Nothing new to save yet."); return; }
+    if (S.kind === "bottle" && !/^\d{4}-\d{2}-\d{2}$/.test(S.date || "")) { msg('<span style="color:#f87171">Pick a date.</span>'); return; }
+
+    // The fields every save carries (see the build plan's "Data model")
+    const base = S.kind === "hist" ? {
+      entry_type: "drink_history",
+      target_id: [S.h.date || "", S.h.specific || "", S.h.brand || ""].join("|"),
+      row_hint: S.h.hint || 0,
+      drink_name: S.h.drink || "", drink_name_specific: S.h.specific || "",
+      brand: S.h.brand || "", date: S.h.date || "", where: "", tasting_id: ""
+    } : {
+      entry_type: "bottle",
+      target_id: S.b.bottleId, row_hint: "",
+      drink_name: S.b.type || "", drink_name_specific: S.b.ingredient || "",
+      brand: S.b.brand || "", date: S.date, where: S.where, tasting_id: newId()
+    };
+
+    // One save per person rated (the inbox keeps one rating per row). Tags and
+    // the comment ride on the first save only, so they aren't doubled up.
+    const people = [];
+    if (reed !== null) people.push(["Reed", reed]);
+    if (cand !== null) people.push(["Candice", cand]);
+    if (!people.length) people.push(["", ""]);
+    const items = people.map(([who, r], i) => Object.assign({}, base, {
+      person: who, rating: r,
+      nose_tags: i === 0 ? tags.nose : "", palate_tags: i === 0 ? tags.palate : "",
+      finish_tags: i === 0 ? tags.finish : "", comment: i === 0 ? comment : "",
+      client_id: newId(), app_version: APP_VERSION
+    }));
+
+    // Queue first (so nothing is lost if the phone dies mid-send), then send
+    qSave(qLoad().concat(items));
+    S.saved = true;
+    const btn = $("#tp-save"); btn.disabled = true;
+    msg("Saving&hellip;");
+    const res = await flush();
+    const ids = new Set(items.map(x => x.client_id));
+    const left = qLoad().filter(x => ids.has(x.client_id)).length;
+    btn.disabled = false; btn.textContent = "Done";
+    const after = " It shows up here after your next sync + update on the Mac.";
+    if (!left) msg('<span style="color:var(--good)">' + (S.kind === "bottle" ? "Logged" : "Saved") + ' &#10003;</span>' + after);
+    else if (res.problem === "offline") msg('<span style="color:var(--gold)">Queued (offline).</span> It will send by itself when you have signal.');
+    else if (res.problem === "not set up") msg('<span style="color:var(--gold)">Kept on this phone.</span> Saving isn&rsquo;t set up yet &mdash; the inbox details aren&rsquo;t in the published data. It will send after the next publish.');
+    else msg('<span style="color:#f87171">Couldn&rsquo;t save: ' + esc(res.problem) + '.</span> It&rsquo;s kept on this phone and will retry.');
+  }
+
+  // ---- The two kinds of button that open the pop-up ----------------------------
+  document.addEventListener("click", e => {
+    const hb = e.target.closest("[data-tp-h]");
+    if (hb) { e.preventDefault(); openHist(+hb.dataset.tpH); return; }
+    const bb = e.target.closest("[data-tp-b]");
+    if (bb) { e.preventDefault(); openBottle(bb.dataset.tpB); }
+  });
+
+  return {
+    // The pencil button for one Drink History row (used by the History table)
+    histBtn: h => `<button class="tp-btn" data-tp-h="${h._i}" title="Add tasting notes" aria-label="Add tasting notes">&#9998;</button>`,
+    flush
+  };
 })();
 
 
@@ -2377,6 +2765,7 @@ document.addEventListener("click", e=>{
   // full log
   const st={countSel:"#hist-rows",sortKey:"date",desc:true};
   const cols=[
+    {key:"_tp",label:"",cls:"tpcell",fmt:(v,r)=>TP.histBtn(r)},
     {key:"date",label:"Date"},
     {key:"specific",label:"Drink",fmt:v=>`<span class="drinklink" data-n="${esc(v)}">${esc(v)}</span>`},
     {key:"brand",label:"Brand"},
